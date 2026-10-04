@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Sky Marquee Accounts</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#16213E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--ink:#16213E;--paper:#F2F4F8;--panel:#fff;--accent:#2F5BEA;--ok:#0F8A5F;--warn:#C2410C;--line:#D9DEE8;--mute:#5B6579}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+header{background:var(--ink);color:#fff;padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header b{font-size:17px;font-weight:600;margin-right:auto}
+nav a{color:#B9C3E0;text-decoration:none;padding:6px 2px;margin-left:12px}
+nav a.on{color:#fff;border-bottom:2px solid #fff}
+main{max-width:860px;margin:0 auto;padding:16px}
+h2{font-size:20px;margin:4px 0 12px}h3{font-size:16px;margin:20px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+a.item{display:block;color:inherit;text-decoration:none}
+.mute{color:var(--mute);font-size:13px}.ok{color:var(--ok)}.warn{color:var(--warn)}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.sum div{border-left:3px solid var(--line);padding-left:8px}.sum small{display:block;color:var(--mute)}.sum strong{font-size:17px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 2px}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:4px;font:inherit;background:#fff}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:var(--accent);color:#fff;border:0;border-radius:4px;padding:10px 16px;font:inherit;font-weight:500;margin-top:12px;cursor:pointer}
+button.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+td.n,th.n{text-align:right}.wide{overflow-x:auto}
+.err{background:#FDECE4;color:var(--warn);padding:10px;border-radius:4px;margin-bottom:10px}
+@media print{header,.noprint{display:none}body{background:#fff}.card{border:0}}
+</style></head><body>
+<header><b>Deep Sky Marquee</b><nav id="nav" hidden>
+<a href="#/">Home</a><a href="#/bookings">Bookings</a><a href="#/new">New booking</a><a href="#/calendar">Calendar</a><a href="#/today">Today</a><a href="#/vendors">Vendors</a><a href="#/expense">Expense</a><a href="#/partners">Partners</a><a href="#/cash">Cash</a><a href="#/pl">Reports</a><a href="#/close">Controls</a><a href="#/setup">Setup</a><a href="#" id="out">Sign out</a></nav></header>
+<main id="app"></main>
+<script>
+const SUPABASE_URL='https://sehlimfjjpzquzioqrjb.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlaGxpbWZqanB6cXV6aW9xcmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzY0MjcsImV4cCI6MjEwNjcxMjQyN30.OU0FMX_pNDfAbwlon-8fr4Xi8KDzEbgl1iHR7-qgNsU';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pkr=n=>'PKR '+Number(n||0).toLocaleString('en-PK');
+const today=()=>new Date().toISOString().slice(0,10);
+const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-level security/.test(e.message||'')?'Your role does not allow this action.':(e.message||e))}</div>`);scrollTo(0,0)};
+const status=b=>b.status;
+
+async function route(){
+  const {data:{session}}=await db.auth.getSession();
+  $('#nav').hidden=!session;
+  if(!session) return login();
+  const h=location.hash.slice(1)||'/';
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+h));
+  try{
+    if(h==='/') await home(); else if(h==='/bookings') await list(); else if(h==='/pl') await plView(); else if(h==='/close') await closeView(); else if(h==='/journal') await journalView(); else if(h==='/access') await accessView(); else if(h==='/events') await eventsView(); else if(h==='/ar') await arView(); else if(h==='/bs') await bsView(); else if(h==='/new') await form(); else if(h==='/calendar') await calendarView(); else if(h==='/cf') await cfView(); else if(h==='/setup') await setupView(); else if(h.startsWith('/inv/')) await invoiceView(h.slice(5)); else if(h==='/ledger') await ledger();
+    else if(h==='/tb') await tb(); else if(h==='/today') await todayView(); else if(h==='/vendors') await vendorsView();
+    else if(h.startsWith('/bill')) await billForm(); else if(h==='/expense') await expenseForm();
+    else if(h==='/partners') await partnersView(); else if(h==='/cash') await cashView(); else if(h.startsWith('/b/')) await detail(h.slice(3));
+  }catch(e){fail(e)}
+}
+function login(){
+  app.innerHTML=`<div class="card"><h2>Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
+  <label>Password</label><input id="pw" type="password" autocomplete="current-password"><button id="go">Sign in</button><p><a href="#" id="fp">Forgot password</a></p></div>`;
+  $('#fp').onclick=async e=>{e.preventDefault();if(!$('#em').value)return fail('Enter your email first.');
+    const {error}=await db.auth.resetPasswordForEmail($('#em').value,{redirectTo:location.href.split('#')[0]});error?fail(error):app.insertAdjacentHTML('afterbegin','<div class="card">Check your email for a reset link.</div>')};
+  $('#go').onclick=async()=>{const {error}=await db.auth.signInWithPassword({email:$('#em').value,password:$('#pw').value});
+    if(error)return fail(error);
+    const {data:lv}=await db.auth.mfa.getAuthenticatorAssuranceLevel();
+    if(lv&&lv.nextLevel==='aal2'&&lv.currentLevel!=='aal2'){const code=prompt('Enter your 6-digit authenticator code');const {data:fs}=await db.auth.mfa.listFactors();
+      const {error:e2}=await db.auth.mfa.challengeAndVerify({factorId:fs.totp[0].id,code});if(e2){await db.auth.signOut();return fail(e2)}}
+    route()};
+}
+$('#out').onclick=async e=>{e.preventDefault();await db.auth.signOut();route()};
+
+async function list(){
+  const {data,error}=await db.from('booking_summary').select('*').order('event_date');
+  if(error) throw error;
+  const due=data.reduce((s,b)=>s+Number(b.outstanding),0);
+  app.innerHTML=`<h2>Bookings</h2><div class="card"><div class="sum"><div><small>Bookings</small><strong>${data.length}</strong></div>
+  <div><small>Contract value</small><strong>${pkr(data.reduce((s,b)=>s+Number(b.contract_value),0))}</strong></div>
+  <div><small>Outstanding</small><strong class="${due?'warn':''}">${pkr(due)}</strong></div></div></div>`+
+  (data.length?data.map(b=>`<a class="item card" href="#/b/${b.id}"><div class="row"><strong>${esc(b.customer_name)}</strong><span>${esc(b.status)}</span></div>
+  <div class="mute">${esc(b.ref)}, ${esc(b.event_type)}, ${b.event_date}</div>
+  <div class="row"><span>${pkr(b.contract_value)}</span><span class="${b.outstanding>0?'warn':'ok'}">Due ${pkr(b.outstanding)}</span></div></a>`).join('')
+  :`<div class="card">No bookings yet. <a href="#/new">Create one</a>, or load the PKR 1,500,000 example (300,000 + 400,000 + 600,000 received).<br><button id="demo" class="alt">Load example</button></div>`);
+  const d=$('#demo'); if(d) d.onclick=async()=>{
+    const {data:b,error}=await db.from('bookings').insert({customer_name:'Example Wedding',event_type:'Wedding',event_date:today(),guests:500,base_price:1500000}).select().single();
+    if(error) return fail(error);
+    for(const [k,a] of [['advance',300000],['installment',400000],['event_day',600000]]){
+      const {error:e}=await db.rpc('record_payment',{p_booking:b.id,p_date:today(),p_amount:a,p_kind:k,p_method:'Cash',p_account:'1000',p_ref:null,p_by:'Demo',p_notes:'Example'}); if(e) return fail(e);}
+    location.hash='#/b/'+b.id};
+}
+function form(){
+  const f=(id,l,t='text',v='')=>`<div><label for="${id}">${l}</label><input id="${id}" type="${t}" value="${v}"></div>`;
+  app.innerHTML=`<h2>New booking</h2><div class="card">${f('customer_name','Customer name *')}
+  <div class="g2">${f('bride','Bride')}${f('groom','Groom')}${f('guardian','Father / guardian')}${f('phone','Phone','tel')}
+  ${f('whatsapp','WhatsApp','tel')}${f('email','Email','email')}</div>
+  <div class="g2"><div><label>Event type</label><select id="event_type">${['Wedding','Walima','Mehndi','Barat','Corporate event','Birthday','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+  ${f('event_date','Event date *','date')}${f('start_time','Start','time','19:00')}${f('end_time','End','time','23:00')}
+  ${f('hall','Hall / marquee','text','Main')}${f('guests','Expected guests','number')}</div>
+  <div class="g2">${f('base_price','Base price (PKR) *','number')}${f('extras','Additional services (PKR)','number','0')}${f('discount','Discount (PKR)','number','0')}</div>
+  <label for="notes">Notes</label><textarea id="notes" rows="2"></textarea><button id="save">Save booking</button></div>`;
+  $('#save').onclick=async()=>{
+    const r={};['customer_name','bride','groom','guardian','phone','whatsapp','email','event_type','event_date','start_time','end_time','hall','guests','base_price','extras','discount','notes']
+      .forEach(k=>{const v=$('#'+k).value.trim();r[k]=v===''?null:v});
+    if(!r.customer_name||!r.event_date) return fail('Customer name and event date are required.');
+    ['base_price','extras','discount'].forEach(k=>r[k]=Number(r[k]||0));
+    const {data,error}=await db.from('bookings').insert(r).select().single();
+    if(error) return fail(error.message.includes('exclude')||error.code==='23P01'?'This hall is already booked for an overlapping time on that date.':error);
+    location.hash='#/b/'+data.id};
+}
+async function detail(id){
+  const [{data:b,error},{data:pays},{data:sch},{data:accts}]=await Promise.all([
+    db.from('booking_summary').select('*').eq('id',id).single(),
+    db.from('payments').select('*').eq('booking_id',id).order('created_at'),
+    db.from('payment_schedule').select('*').eq('booking_id',id).order('due_date'),
+    db.from('accounts').select('*').lt('code','1200').order('code')]);
+  if(error) throw error;
+  const [{data:cc},{data:bb}]=await Promise.all([db.from('booking_costs').select('cost').eq('booking_id',id),db.from('vendor_bill_summary').select('*').eq('booking_id',id)]);
+  const cost=Number(cc[0]?.cost||0), contrib=b.contract_value-cost;
+  const costHtml=`<h3>Costs and contribution</h3><div class="card"><div class="sum"><div><small>Direct costs</small><strong>${pkr(cost)}</strong></div>
+  <div><small>Gross contribution</small><strong class="${contrib>=0?'ok':'warn'}">${pkr(contrib)}</strong></div>
+  <div><small>Margin</small><strong>${b.contract_value>0?Math.round(contrib/b.contract_value*100):0}%</strong></div></div>
+  <label>Catering arrangement</label><select id="cm"><option value="venue_pays">Venue pays caterer (included in package, collected then paid, or marked up)</option><option value="customer_direct">Customer pays caterer directly</option></select>
+  ${bb.map(x=>`<div class="row"><span>${esc(x.vendor_name)} ${esc(x.description||'')}</span><span>${pkr(x.amount)}, due ${pkr(x.outstanding)}</span></div>`).join('')}
+  <a href="#/bill?b=${id}">Add vendor bill for this event</a></div>`;
+  const {data:invs}=await db.from('invoices').select('id,number,total').eq('booking_id',id).eq('voided',false);
+  const invHtml=`<h3>Invoices and discount</h3><div class="card">${(invs||[]).map(i=>`<a class="item row" href="#/inv/${i.id}"><span>${i.number}</span><span>${pkr(i.total)}</span></a>`).join('')}
+  <button id="mkinv" class="alt">Create invoice</button><label>Discount (PKR)</label><div class="row"><input id="dsc" type="number" value="${b.discount}"><button id="dscbtn" class="alt">Update discount</button></div></div>`;
+  let pool=0; // allocate received money to schedule lines in due-date order
+  pays.filter(p=>!p.voided).forEach(p=>pool+=p.kind==='refund'?-p.amount:+p.amount);
+  const rows=sch.map(s=>{const paid=Math.min(pool,s.amount);pool-=paid;
+    const st=paid>=s.amount?'Paid':s.due_date<today()?'Overdue':paid>0?'Partially Paid':'Pending';
+    return `<tr><td>${esc(s.label)}</td><td>${s.due_date}</td><td class="n">${pkr(s.amount)}</td><td class="n">${pkr(paid)}</td><td class="${st==='Overdue'?'warn':st==='Paid'?'ok':''}">${st}</td></tr>`}).join('');
+  app.innerHTML=`<p><a href="#/bookings">Back to bookings</a></p><h2>${esc(b.customer_name)}</h2>
+  <div class="mute">${esc(b.ref)}, ${esc(b.event_type)}, ${b.event_date} ${b.start_time.slice(0,5)}-${b.end_time.slice(0,5)}, ${esc(b.hall)}${b.guests?', '+b.guests+' guests':''}</div>
+  <div class="card"><div class="sum"><div><small>Total contract</small><strong>${pkr(b.contract_value)}</strong></div>
+  <div><small>Received</small><strong class="ok">${pkr(b.received)}</strong></div>
+  <div><small>Outstanding</small><strong class="${b.outstanding>0?'warn':'ok'}">${pkr(b.outstanding)}</strong></div></div>
+  <div class="mute">Base ${pkr(b.base_price)} + services ${pkr(b.extras)} - discount ${pkr(b.discount)}. Status: ${esc(b.status)}</div></div>
+  ${costHtml}${invHtml}<h3>Record payment</h3><div class="card"><div class="g2">
+  <div><label>Date</label><input id="pd" type="date" value="${today()}"></div><div><label>Amount (PKR)</label><input id="pa" type="number" value="${b.outstanding>0?b.outstanding:''}"></div>
+  <div><label>Type</label><select id="pk"><option value="advance">Advance</option><option value="installment">Installment</option><option value="final">Final payment</option><option value="event_day">Event-day payment</option><option value="refund">Refund</option></select></div>
+  <div><label>Method</label><select id="pm">${['Cash','Bank transfer','Cheque','Card','Online transfer','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+  <div><label>Received into</label><select id="pc">${accts.map(a=>`<option value="${a.code}">${esc(a.name)}</option>`).join('')}</select></div>
+  <div><label>Reference / transaction ID</label><input id="pr"></div></div>
+  <label>Received by</label><input id="pb"><button id="pay">Save payment</button></div>
+  <h3>Payments</h3><div class="card wide"><table><tr><th>Receipt</th><th>Date</th><th>Type</th><th class="n">Amount</th><th></th></tr>
+  ${pays.map(p=>`<tr><td>${p.receipt_no}</td><td>${p.paid_on}</td><td>${p.kind.replace('_',' ')}</td><td class="n">${p.kind==='refund'?'-':''}${pkr(p.amount)}</td><td><a href="#" data-r="${p.id}">Receipt</a>${p.voided?' (void)':p.kind==='refund'?'':` <a href="#" data-v="${p.id}">Void</a>`}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments yet</td></tr>'}</table></div>
+  <h3>Payment schedule</h3><div class="card wide"><table><tr><th>Item</th><th>Due</th><th class="n">Expected</th><th class="n">Received</th><th>Status</th></tr>${rows||'<tr><td colspan="5" class="mute">No schedule yet</td></tr>'}</table>
+  <div class="g2"><div><label>Item</label><input id="sl" placeholder="Second installment"></div><div><label>Due date</label><input id="sd" type="date"></div></div>
+  <label>Expected amount (PKR)</label><input id="sa" type="number"><button id="sadd" class="alt">Add to schedule</button></div>
+  ${b.completed?'':`<button id="done" class="alt">Mark event completed (recognize revenue)</button>`}
+  ${b.completed||b.status==='Cancelled'?'':`<h3>Cancel booking</h3><div class="card"><div class="mute">Received ${pkr(b.received)}. The charge kept plus the refund must equal this.</div><div class="g2">
+  <div><label>Cancellation charge kept (PKR)</label><input id="cc" type="number" value="0"></div><div><label>Refund to customer (PKR)</label><input id="cr" type="number" value="${b.received}"></div>
+  <div><label>Refund from</label><select id="cac">${accts.map(a=>`<option value="${a.code}">${esc(a.name)}</option>`).join('')}</select></div><div><label>Reason</label><input id="crs"></div></div>
+  <button id="cancelbtn" class="alt">Cancel booking</button></div>`}`;
+  {const {data:cmr}=await db.from('bookings').select('catering_model').eq('id',id).single();$('#cm').value=cmr.catering_model;}$('#cm').onchange=async()=>{const {error}=await db.from('bookings').update({catering_model:$('#cm').value}).eq('id',id);error?fail(error):0};
+  document.querySelectorAll('[data-v]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for voiding this payment?');if(!r)return;
+    const {error}=await db.rpc('void_payment',{p_payment:a.dataset.v,p_date:today(),p_reason:r});error?fail(error):route()});
+  const cb=$('#cancelbtn');if(cb){$('#cc').oninput=()=>{$('#cr').value=Math.max(0,b.received-Number($('#cc').value||0))};
+    cb.onclick=async()=>{if(!confirm('Cancel this booking?'))return;const rf=Number($('#cr').value||0);
+    const {error}=await db.rpc('cancel_booking',{p_booking:id,p_date:today(),p_charge:Number($('#cc').value||0),p_refund:rf,p_account:rf>0?$('#cac').value:null,p_reason:$('#crs').value||null});error?fail(error):route()}}
+  $('#mkinv').onclick=()=>makeInvoice(b);
+  $('#dscbtn').onclick=async()=>{const {error}=await db.from('bookings').update({discount:Number($('#dsc').value||0)}).eq('id',id);error?fail(error):route()};
+  $('#pay').onclick=async()=>{const {data:rn,error}=await db.rpc('record_payment',{p_booking:id,p_date:$('#pd').value,p_amount:Number($('#pa').value),
+    p_kind:$('#pk').value,p_method:$('#pm').value,p_account:$('#pc').value,p_ref:$('#pr').value||null,p_by:$('#pb').value||null,p_notes:null});
+    error?fail(error):route()};
+  $('#sadd').onclick=async()=>{const {error}=await db.from('payment_schedule').insert({booking_id:id,label:$('#sl').value,due_date:$('#sd').value,amount:Number($('#sa').value)});error?fail(error):route()};
+  const dn=$('#done'); if(dn) dn.onclick=async()=>{if(!confirm('Mark this event as held? Advances become revenue.'))return;
+    const {error}=await db.rpc('complete_event',{p_booking:id,p_date:today()});error?fail(error):route()};
+  document.querySelectorAll('[data-r]').forEach(a=>a.onclick=e=>{e.preventDefault();receipt(b,pays,pays.find(p=>p.id===a.dataset.r))});
+}
+function receipt(b,pays,p){
+  let before=0;for(const x of pays){if(x.id===p.id)break;if(x.voided)continue;before+=x.kind==='refund'?-x.amount:+x.amount}
+  const prev=b.contract_value-before, after=prev-(p.kind==='refund'?-p.amount:+p.amount);
+  const w=open('','_blank');
+  w.document.write(`<title>${p.receipt_no}</title><body style="font:15px sans-serif;max-width:480px;margin:30px auto"><h2>Deep Sky Marquee, Islamabad</h2><h3>Receipt ${p.receipt_no}</h3>
+  <p>Customer: ${esc(b.customer_name)}<br>Booking: ${esc(b.ref)}<br>Date: ${p.paid_on}<br>Method: ${esc(p.method)}${p.reference?' ('+esc(p.reference)+')':''}</p>
+  <p>Previous balance: ${pkr(prev)}<br><b>${p.kind==='refund'?'Refunded':'Payment'}: ${pkr(p.amount)}</b><br>Remaining balance: ${pkr(after)}</p><p>Received by: ${esc(p.received_by||'')}</p>
+  <script>print()<\/script></body>`);w.document.close();
+}
+async function ledger(){
+  const {data,error}=await db.from('journal_lines').select('debit,credit,account_code,accounts(name),journal_entries(entry_date,ref,memo)').order('created_at',{ascending:false}).limit(200);
+  if(error) throw error;
+  app.innerHTML=repNav()+`<h2>General ledger</h2><div class="card wide"><table><tr><th>Date</th><th>Reference</th><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr>
+  ${data.map(l=>`<tr><td>${l.journal_entries.entry_date}</td><td>${esc(l.journal_entries.ref)}</td><td>${l.account_code} ${esc(l.account
