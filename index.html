@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Sky Marquee Accounts</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#16213E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--ink:#16213E;--paper:#F2F4F8;--panel:#fff;--accent:#2F5BEA;--ok:#0F8A5F;--warn:#C2410C;--line:#D9DEE8;--mute:#5B6579}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+header{background:var(--ink);color:#fff;padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header b{font-size:17px;font-weight:600;margin-right:auto}
+nav a{color:#B9C3E0;text-decoration:none;padding:6px 2px;margin-left:12px}
+nav a.on{color:#fff;border-bottom:2px solid #fff}
+main{max-width:860px;margin:0 auto;padding:16px}
+h2{font-size:20px;margin:4px 0 12px}h3{font-size:16px;margin:20px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+a.item{display:block;color:inherit;text-decoration:none}
+.mute{color:var(--mute);font-size:13px}.ok{color:var(--ok)}.warn{color:var(--warn)}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.sum div{border-left:3px solid var(--line);padding-left:8px}.sum small{display:block;color:var(--mute)}.sum strong{font-size:17px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 2px}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:4px;font:inherit;background:#fff}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:var(--accent);color:#fff;border:0;border-radius:4px;padding:10px 16px;font:inherit;font-weight:500;margin-top:12px;cursor:pointer}
+button.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+td.n,th.n{text-align:right}.wide{overflow-x:auto}
+.err{background:#FDECE4;color:var(--warn);padding:10px;border-radius:4px;margin-bottom:10px}
+@media print{header,.noprint{display:none}body{background:#fff}.card{border:0}}
+</style></head><body>
+<header><b>Deep Sky Marquee</b><nav id="nav" hidden>
+<a href="#/">Home</a><a href="#/bookings">Bookings</a><a href="#/new">New booking</a><a href="#/calendar">Calendar</a><a href="#/today">Today</a><a href="#/vendors">Vendors</a><a href="#/expense">Expense</a><a href="#/partners">Partners</a><a href="#/cash">Cash</a><a href="#/pl">Reports</a><a href="#/close">Controls</a><a href="#/setup">Setup</a><a href="#" id="out">Sign out</a></nav></header>
+<main id="app"></main>
+<script>
+const SUPABASE_URL='PASTE_PROJECT_URL', SUPABASE_KEY='PASTE_ANON_KEY';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pkr=n=>'PKR '+Number(n||0).toLocaleString('en-PK');
+const today=()=>new Date().toISOString().slice(0,10);
+const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-level security/.test(e.message||'')?'Your role does not allow this action.':(e.message||e))}</div>`);scrollTo(0,0)};
+const status=b=>b.status;
+
+async function route(){
+  const {data:{session}}=await db.auth.getSession();
+  $('#nav').hidden=!session;
+  if(!session) return login();
+  const h=location.hash.slice(1)||'/';
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+h));
+  try{
+    if(h==='/') await home(); else if(h==='/bookings') await list(); else if(h==='/pl') await plView(); else if(h==='/close') await closeView(); else if(h==='/journal') await journalView(); else if(h==='/access') await accessView(); else if(h==='/events') await eventsView(); else if(h==='/ar') await arView(); else if(h==='/bs') await bsView(); else if(h==='/new') await form(); else if(h==='/calendar') await calendarView(); else if(h==='/cf') await cfView(); else if(h==='/setup') await setupView(); else if(h.startsWith('/inv/')) await invoiceView(h.slice(5)); else if(h==='/ledger') await ledger();
+    else if(h==='/tb') await tb(); else if(h==='/today') await todayView(); else if(h==='/vendors') await vendorsView();
+    else if(h.startsWith('/bill')) await billForm(); else if(h==='/expense') await expenseForm();
+    else if(h==='/partners') await partnersView(); else if(h==='/cash') await cashView(); else if(h.startsWith('/b/')) await detail(h.slice(3));
+  }catch(e){fail(e)}
+}
+function login(){
+  app.innerHTML=`<div class="card"><h2>Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
+  <label>Password</label><input id="pw" type="password" autocomplete="current-password"><button id="go">Sign in</button><p><a href="#" id="fp">Forgot password</a></p></div>`;
+  $('#fp').onclick=async e=>{e.preventDefault();if(!$('#em').value)return fail('Enter your email first.');
+    const {error}=await db.auth.resetPasswordForEmail($('#em').value,{redirectTo:location.href.split('#')[0]});error?fail(error):app.insertAdjacentHTML('afterbegin','<div class="card">Check your email for a reset link.</div>')};
+  $('#go').onclick=async()=>{const {error}=await db.auth.signInWithPassword({email:$('#em').value,password:$('#pw').value});
+    if(error)return fail(error);
+    const {data:lv}=await db.auth.mfa.getAuthenticatorAssuranceLevel();
+    if(lv&&lv.nextLevel==='aal2'&&lv.currentLevel!=='aal2'){const code=prompt('Enter your 6-digit authenticator code');const {data:fs}=await db.auth.mfa.listFactors();
+      const {error:e2}=await db.auth.mfa.challengeAndVerify({factorId:fs.totp[0].id,code});if(e2){await db.auth.signOut();return fail(e2)}}
+    route()};
+}
+$('#out').onclick=async e=>{e.preventDefault();await db.auth.signOut();route()};
+
+async function list(){
+  const {data,error}=await db.from('booking_summary').select('*').order('event_date');
+  if(error) throw error;
+  const due=data.reduce((s,b)=>s+Number(b.outstanding),0);
+  app.innerHTML=`<h2>Bookings</h2><div class="card"><div class="sum"><div><small>Bookings</small><strong>${data.length}</strong></div>
+  <div><small>Contract value</small><strong>${pkr(data.reduce((s,b)=>s+Number(b.contract_value),0))}</strong></div>
+  <div><small>Outstanding</small><strong class="${due?'warn':''}">${pkr(due)}</strong></div></div></div>`+
+  (data.length?data.map(b=>`<a class="item card" href="#/b/${b.id}"><div class="row"><strong>${esc(b.customer_name)}</strong><span>${esc(b.status)}</span></div>
+  <div class="mute">${esc(b.ref)}, ${esc(b.event_type)}, ${b.event_date}</div>
+  <div class="row"><span>${pkr(b.contract_value)}</span><span class="${b.outstanding>0?'warn':'ok'}">Due ${pkr(b.outstanding)}</span></div></a>`).join('')
+  :`<div class="card">No bookings yet. <a href="#/new">Create one</a>, or load the PKR 1,500,000 example (300,000 + 400,000 + 600,000 received).<br><button id="demo" class="alt">Load example</button></div>`);
+  const d=$('#demo'); if(d) d.onclick=async()=>{
+    const {data:b,error}=await db.from('bookings').insert({customer_name:'Example Wedding',event_type:'Wedding',event_date:today(),guests:500,base_price:1500000}).select().single();
+    if(error) return fail(error);
+    for(const [k,a] of [['advance',300000],['installment',400000],['event_day',600000]]){
+      const {error:e}=await db.rpc('record_payment',{p_booking:b.id,p_date:today(),p_amount:a,p_kind:k,p_method:'Cash',p_account:'1000',p_ref:null,p_by:'Demo',p_notes:'Example'}); if(e) return fail(e);}
+    location.hash='#/b/'+b.id};
+}
+function form(){
+  const f=(id,l,t='text',v='')=>`<div><label for="${id}">${l}</label><input id="${id}" type="${t}" value="${v}"></div>`;
+  app.innerHTML=`<h2>New booking</h2><div class="card">${f('customer_name','Customer name *')}
+  <div class="g2">${f('bride','Bride')}${f('groom','Groom')}${f('guardian','Father / guardian')}${f('phone','Phone','tel')}
+  ${f('whatsapp','WhatsApp','tel')}${f('email','Email','email')}</div>
+  <div class="g2"><div><label>Event type</label><select id="event_type">${['Wedding','Walima','Mehndi','Barat','Corporate event','Birthday','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+  ${f('event_date','Event date *','date')}${f('start_time','Start','time','19:00')}${f('end_time','End','time','23:00')}
+  ${f('hall','Hall / marquee','text','Main')}${f('guests','Expected guests','number')}</div>
+  <div class="g2">${f('base_price','Base price (PKR) *','number')}${f('extras','Additional services (PKR)','number','0')}${f('discount','Discount (PKR)','number','0')}</div>
+  <label for="notes">Notes</label><textarea id="notes" rows="2"></textarea><button id="save">Save booking</button></div>`;
+  $('#save').onclick=async()=>{
+    const r={};['customer_name','bride','groom','guardian','phone','whatsapp','email','event_type','event_date','start_time','end_time','hall','guests','base_price','extras','discount','notes']
+      .forEach(k=>{const v=$('#'+k).value.trim();r[k]=v===''?null:v});
+    if(!r.customer_name||!r.event_date) return fail('Customer name and event date are required.');
+    ['base_price','extras','discount'].forEach(k=>r[k]=Number(r[k]||0));
+    const {data,error}=await db.from('bookings').insert(r).select().single();
+    if(error) return fail(error.message.includes('exclude')||error.code==='23P01'?'This hall is already booked for an overlapping time on that date.':error);
+    location.hash='#/b/'+data.id};
+}
+async function detail(id){
+  const [{data:b,error},{data:pays},{data:sch},{data:accts}]=await Promise.all([
+    db.from('booking_summary').select('*').eq('id',id).single(),
+    db.from('payments').select('*').eq('booking_id',id).order('created_at'),
+    db.from('payment_schedule').select('*').eq('booking_id',id).order('due_date'),
+    db.from('accounts').select('*').lt('code','1200').order('code')]);
+  if(error) throw error;
+  const [{data:cc},{data:bb}]=await Promise.all([db.from('booking_costs').select('cost').eq('booking_id',id),db.from('vendor_bill_summary').select('*').eq('booking_id',id)]);
+  const cost=Number(cc[0]?.cost||0), contrib=b.contract_value-cost;
+  const costHtml=`<h3>Costs and contribution</h3><div class="card"><div class="sum"><div><small>Direct costs</small><strong>${pkr(cost)}</strong></div>
+  <div><small>Gross contribution</small><strong class="${contrib>=0?'ok':'warn'}">${pkr(contrib)}</strong></div>
+  <div><small>Margin</small><strong>${b.contract_value>0?Math.round(contrib/b.contract_value*100):0}%</strong></div></div>
+  <label>Catering arrangement</label><select id="cm"><option value="venue_pays">Venue pays caterer (included in package, collected then paid, or marked up)</option><option value="customer_direct">Customer pays caterer directly</option></select>
+  ${bb.map(x=>`<div class="row"><span>${esc(x.vendor_name)} ${esc(x.description||'')}</span><span>${pkr(x.amount)}, due ${pkr(x.outstanding)}</span></div>`).join('')}
+  <a href="#/bill?b=${id}">Add vendor bill for this event</a></div>`;
+  const {data:invs}=await db.from('invoices').select('id,number,total').eq('booking_id',id).eq('voided',false);
+  const invHtml=`<h3>Invoices and discount</h3><div class="card">${(invs||[]).map(i=>`<a class="item row" href="#/inv/${i.id}"><span>${i.number}</span><span>${pkr(i.total)}</span></a>`).join('')}
+  <button id="mkinv" class="alt">Create invoice</button><label>Discount (PKR)</label><div class="row"><input id="dsc" type="number" value="${b.discount}"><button id="dscbtn" class="alt">Update discount</button></div></div>`;
+  let pool=0; // allocate received money to schedule lines in due-date order
+  pays.filter(p=>!p.voided).forEach(p=>pool+=p.kind==='refund'?-p.amount:+p.amount);
+  const rows=sch.map(s=>{const paid=Math.min(pool,s.amount);pool-=paid;
+    const st=paid>=s.amount?'Paid':s.due_date<today()?'Overdue':paid>0?'Partially Paid':'Pending';
+    return `<tr><td>${esc(s.label)}</td><td>${s.due_date}</td><td class="n">${pkr(s.amount)}</td><td class="n">${pkr(paid)}</td><td class="${st==='Overdue'?'warn':st==='Paid'?'ok':''}">${st}</td></tr>`}).join('');
+  app.innerHTML=`<p><a href="#/bookings">Back to bookings</a></p><h2>${esc(b.customer_name)}</h2>
+  <div class="mute">${esc(b.ref)}, ${esc(b.event_type)}, ${b.event_date} ${b.start_time.slice(0,5)}-${b.end_time.slice(0,5)}, ${esc(b.hall)}${b.guests?', '+b.guests+' guests':''}</div>
+  <div class="card"><div class="sum"><div><small>Total contract</small><strong>${pkr(b.contract_value)}</strong></div>
+  <div><small>Received</small><strong class="ok">${pkr(b.received)}</strong></div>
+  <div><small>Outstanding</small><strong class="${b.outstanding>0?'warn':'ok'}">${pkr(b.outstanding)}</strong></div></div>
+  <div class="mute">Base ${pkr(b.base_price)} + services ${pkr(b.extras)} - discount ${pkr(b.discount)}. Status: ${esc(b.status)}</div></div>
+  ${costHtml}${invHtml}<h3>Record payment</h3><div class="card"><div class="g2">
+  <div><label>Date</label><input id="pd" type="date" value="${today()}"></div><div><label>Amount (PKR)</label><input id="pa" type="number" value="${b.outstanding>0?b.outstanding:''}"></div>
+  <div><label>Type</label><select id="pk"><option value="advance">Advance</option><option value="installment">Installment</option><option value="final">Final payment</option><option value="event_day">Event-day payment</option><option value="refund">Refund</option></select></div>
+  <div><label>Method</label><select id="pm">${['Cash','Bank transfer','Cheque','Card','Online transfer','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+  <div><label>Received into</label><select id="pc">${accts.map(a=>`<option value="${a.code}">${esc(a.name)}</option>`).join('')}</select></div>
+  <div><label>Reference / transaction ID</label><input id="pr"></div></div>
+  <label>Received by</label><input id="pb"><button id="pay">Save payment</button></div>
+  <h3>Payments</h3><div class="card wide"><table><tr><th>Receipt</th><th>Date</th><th>Type</th><th class="n">Amount</th><th></th></tr>
+  ${pays.map(p=>`<tr><td>${p.receipt_no}</td><td>${p.paid_on}</td><td>${p.kind.replace('_',' ')}</td><td class="n">${p.kind==='refund'?'-':''}${pkr(p.amount)}</td><td><a href="#" data-r="${p.id}">Receipt</a>${p.voided?' (void)':p.kind==='refund'?'':` <a href="#" data-v="${p.id}">Void</a>`}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments yet</td></tr>'}</table></div>
+  <h3>Payment schedule</h3><div class="card wide"><table><tr><th>Item</th><th>Due</th><th class="n">Expected</th><th class="n">Received</th><th>Status</th></tr>${rows||'<tr><td colspan="5" class="mute">No schedule yet</td></tr>'}</table>
+  <div class="g2"><div><label>Item</label><input id="sl" placeholder="Second installment"></div><div><label>Due date</label><input id="sd" type="date"></div></div>
+  <label>Expected amount (PKR)</label><input id="sa" type="number"><button id="sadd" class="alt">Add to schedule</button></div>
+  ${b.completed?'':`<button id="done" class="alt">Mark event completed (recognize revenue)</button>`}
+  ${b.completed||b.status==='Cancelled'?'':`<h3>Cancel booking</h3><div class="card"><div class="mute">Received ${pkr(b.received)}. The charge kept plus the refund must equal this.</div><div class="g2">
+  <div><label>Cancellation charge kept (PKR)</label><input id="cc" type="number" value="0"></div><div><label>Refund to customer (PKR)</label><input id="cr" type="number" value="${b.received}"></div>
+  <div><label>Refund from</label><select id="cac">${accts.map(a=>`<option value="${a.code}">${esc(a.name)}</option>`).join('')}</select></div><div><label>Reason</label><input id="crs"></div></div>
+  <button id="cancelbtn" class="alt">Cancel booking</button></div>`}`;
+  {const {data:cmr}=await db.from('bookings').select('catering_model').eq('id',id).single();$('#cm').value=cmr.catering_model;}$('#cm').onchange=async()=>{const {error}=await db.from('bookings').update({catering_model:$('#cm').value}).eq('id',id);error?fail(error):0};
+  document.querySelectorAll('[data-v]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for voiding this payment?');if(!r)return;
+    const {error}=await db.rpc('void_payment',{p_payment:a.dataset.v,p_date:today(),p_reason:r});error?fail(error):route()});
+  const cb=$('#cancelbtn');if(cb){$('#cc').oninput=()=>{$('#cr').value=Math.max(0,b.received-Number($('#cc').value||0))};
+    cb.onclick=async()=>{if(!confirm('Cancel this booking?'))return;const rf=Number($('#cr').value||0);
+    const {error}=await db.rpc('cancel_booking',{p_booking:id,p_date:today(),p_charge:Number($('#cc').value||0),p_refund:rf,p_account:rf>0?$('#cac').value:null,p_reason:$('#crs').value||null});error?fail(error):route()}}
+  $('#mkinv').onclick=()=>makeInvoice(b);
+  $('#dscbtn').onclick=async()=>{const {error}=await db.from('bookings').update({discount:Number($('#dsc').value||0)}).eq('id',id);error?fail(error):route()};
+  $('#pay').onclick=async()=>{const {data:rn,error}=await db.rpc('record_payment',{p_booking:id,p_date:$('#pd').value,p_amount:Number($('#pa').value),
+    p_kind:$('#pk').value,p_method:$('#pm').value,p_account:$('#pc').value,p_ref:$('#pr').value||null,p_by:$('#pb').value||null,p_notes:null});
+    error?fail(error):route()};
+  $('#sadd').onclick=async()=>{const {error}=await db.from('payment_schedule').insert({booking_id:id,label:$('#sl').value,due_date:$('#sd').value,amount:Number($('#sa').value)});error?fail(error):route()};
+  const dn=$('#done'); if(dn) dn.onclick=async()=>{if(!confirm('Mark this event as held? Advances become revenue.'))return;
+    const {error}=await db.rpc('complete_event',{p_booking:id,p_date:today()});error?fail(error):route()};
+  document.querySelectorAll('[data-r]').forEach(a=>a.onclick=e=>{e.preventDefault();receipt(b,pays,pays.find(p=>p.id===a.dataset.r))});
+}
+function receipt(b,pays,p){
+  let before=0;for(const x of pays){if(x.id===p.id)break;if(x.voided)continue;before+=x.kind==='refund'?-x.amount:+x.amount}
+  const prev=b.contract_value-before, after=prev-(p.kind==='refund'?-p.amount:+p.amount);
+  const w=open('','_blank');
+  w.document.write(`<title>${p.receipt_no}</title><body style="font:15px sans-serif;max-width:480px;margin:30px auto"><h2>Deep Sky Marquee, Islamabad</h2><h3>Receipt ${p.receipt_no}</h3>
+  <p>Customer: ${esc(b.customer_name)}<br>Booking: ${esc(b.ref)}<br>Date: ${p.paid_on}<br>Method: ${esc(p.method)}${p.reference?' ('+esc(p.reference)+')':''}</p>
+  <p>Previous balance: ${pkr(prev)}<br><b>${p.kind==='refund'?'Refunded':'Payment'}: ${pkr(p.amount)}</b><br>Remaining balance: ${pkr(after)}</p><p>Received by: ${esc(p.received_by||'')}</p>
+  <script>print()<\/script></body>`);w.document.close();
+}
+async function ledger(){
+  const {data,error}=await db.from('journal_lines').select('debit,credit,account_code,accounts(name),journal_entries(entry_date,ref,memo)').order('created_at',{ascending:false}).limit(200);
+  if(error) throw error;
+  app.innerHTML=repNav()+`<h2>General ledger</h2><div class="card wide"><table><tr><th>Date</th><th>Reference</th><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr>
+  ${data.map(l=>`<tr><td>${l.journal_entries.entry_date}</td><td>${esc(l.journal_entries.ref)}</td><td>${l.account_code} ${esc(l.accounts.name)}</td><td class="n">${l.debit>0?pkr(l.debit):''}</td><td class="n">${l.credit>0?pkr(l.credit):''}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No entries yet</td></tr>'}</table></div>`;
+}
+async function tb(){
+  const {data,error}=await db.from('trial_balance').select('*');if(error) throw error;
+  const rows=data.filter(r=>r.debit>0||r.credit>0), D=rows.reduce((s,r)=>s+Number(r.debit),0), C=rows.reduce((s,r)=>s+Number(r.credit),0);
+  app.innerHTML=repNav()+`<h2>Trial balance</h2><div class="card wide"><table><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr>
+  ${rows.map(r=>`<tr><td>${r.code} ${esc(r.name)}</td><td class="n">${r.debit>0?pkr(r.debit):''}</td><td class="n">${r.credit>0?pkr(r.credit):''}</td></tr>`).join('')}
+  <tr><th>Total</th><th class="n">${pkr(D)}</th><th class="n">${pkr(C)}</th></tr></table><p class="${D===C?'ok':'warn'}">${D===C?'Books balance.':'Books do not balance.'}</p></div>`;
+}
+const opts=(l,v,t)=>l.map(x=>`<option value="${x[v]}">${esc(t(x))}</option>`).join('');
+const cashAccts=()=>db.from('accounts').select('*').lt('code','1200').order('code').then(r=>r.data);
+const costAccts=()=>db.from('accounts').select('*').in('type',['direct_cost','expense']).order('code').then(r=>r.data);
+const age=d=>{if(!d)return 'Current';const n=Math.floor((Date.now()-new Date(d))/864e5);return n<=0?'Current':n<=30?'1-30':n<=60?'31-60':n<=90?'61-90':'90+'};
+
+async function todayView(){
+  const [{data:ev,error},cash]=await Promise.all([db.from('booking_summary').select('*').eq('event_date',today()).neq('status','Cancelled'),cashAccts()]);
+  if(error) throw error;
+  app.innerHTML=`<h2>Event-day collection</h2>`+(ev.length?ev.map(b=>`<div class="card"><div class="row"><strong>${esc(b.customer_name)}</strong><a href="#/b/${b.id}">Open</a></div>
+  <div class="mute">${esc(b.event_type)}, ${b.start_time.slice(0,5)}, ${b.guests||'?'} guests</div>
+  <div class="sum"><div><small>Contract</small><strong>${pkr(b.contract_value)}</strong></div><div><small>Paid before</small><strong class="ok">${pkr(b.received)}</strong></div>
+  <div><small>Collect today</small><strong class="${b.outstanding>0?'warn':'ok'}">${pkr(b.outstanding)}</strong></div></div>
+  ${b.outstanding>0?`<div class="g2"><div><label>Amount collected</label><input data-a="${b.id}" type="number" value="${b.outstanding}"></div>
+  <div><label>Into</label><select data-c="${b.id}">${opts(cash,'code',a=>a.name)}</select></div></div><button data-p="${b.id}">Record collection</button>`:'<span class="ok">Fully collected</span>'}</div>`).join('')
+  :'<div class="card">No events today.</div>');
+  document.querySelectorAll('[data-p]').forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.p;
+    const {error}=await db.rpc('record_payment',{p_booking:id,p_date:today(),p_amount:Number(document.querySelector(`[data-a="${id}"]`).value),
+      p_kind:'event_day',p_method:'Cash',p_account:document.querySelector(`[data-c="${id}"]`).value,p_ref:null,p_by:null,p_notes:null});
+    error?fail(error):route()});
+}
+async function vendorsView(){
+  const [{data:vs},{data:bills},cash]=await Promise.all([db.from('vendors').select('*').order('name'),db.from('vendor_bill_summary').select('*').gt('outstanding',0).order('due_date'),cashAccts()]);
+  const bk={};bills.forEach(b=>bk[age(b.due_date)]=(bk[age(b.due_date)]||0)+Number(b.outstanding));
+  const total=bills.reduce((s,b)=>s+Number(b.outstanding),0);
+  app.innerHTML=`<h2>Vendors and payables</h2><div class="card"><div class="sum"><div><small>Total payable</small><strong class="${total?'warn':''}">${pkr(total)}</strong></div>
+  <div><small>Current</small><strong>${pkr(bk['Current'])}</strong></div><div><small>Overdue</small><strong>${pkr(total-(bk['Current']||0))}</strong></div></div>
+  <div class="mute">${['1-30','31-60','61-90','90+'].map(k=>k+' days: '+pkr(bk[k])).join(' | ')}</div><a href="#/bill">Add vendor bill</a></div>
+  ${bills.map(b=>`<div class="card"><div class="row"><strong>${esc(b.vendor_name)}</strong><span class="warn">Due ${pkr(b.outstanding)}</span></div>
+  <div class="mute">${esc(b.invoice_no||'No invoice no.')}, ${esc(b.booking_ref||'General')}, due ${b.due_date||'on receipt'}, total ${pkr(b.amount)}</div>
+  <div class="g2"><div><label>Pay amount</label><input data-ba="${b.id}" type="number" value="${b.outstanding}"></div><div><label>From</label><select data-bc="${b.id}">${opts(cash,'code',a=>a.name)}</select></div></div>
+  <button class="alt" data-bp="${b.id}">Pay vendor</button>${b.paid>0?'':` <a href="#" data-bv="${b.id}">Void bill</a>`}</div>`).join('')}
+  <h3>Add vendor</h3><div class="card"><label>Name *</label><input id="vn"><div class="g2"><div><label>Category</label><input id="vc" placeholder="Caterer, decorator..."></div>
+  <div><label>Phone</label><input id="vp" type="tel"></div><div><label>CNIC / NTN</label><input id="vt"></div><div><label>Bank details</label><input id="vb"></div></div>
+  <button id="vadd">Save vendor</button></div>
+  <h3>Vendors</h3><div class="card">${vs.map(v=>`<div class="row"><span>${esc(v.name)}</span><span class="mute">${esc(v.category||'')} ${esc(v.phone||'')}</span></div>`).join('')||'<span class="mute">No vendors yet</span>'}</div>`;
+  document.querySelectorAll('[data-bv]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for voiding this bill?');if(!r)return;
+    const {error}=await db.rpc('void_vendor_bill',{p_bill:a.dataset.bv,p_date:today(),p_reason:r});error?fail(error):route()});
+  $('#vadd').onclick=async()=>{if(!$('#vn').value.trim())return fail('Vendor name is required.');
+    const {error}=await db.from('vendors').insert({name:$('#vn').value.trim(),category:$('#vc').value||null,phone:$('#vp').value||null,cnic_ntn:$('#vt').value||null,bank_info:$('#vb').value||null});error?fail(error):route()};
+  document.querySelectorAll('[data-bp]').forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.bp;
+    const {error}=await db.rpc('pay_vendor',{p_bill:id,p_date:today(),p_amount:Number(document.querySelector(`[data-ba="${id}"]`).value),p_account:document.querySelector(`[data-bc="${id}"]`).value,p_ref:null});
+    error?fail(error):route()});
+}
+async function billForm(){
+  const pre=(location.hash.split('?b=')[1])||'';
+  const [{data:vs},{data:bs},ca]=await Promise.all([db.from('vendors').select('*').order('name'),db.from('bookings').select('id,ref,customer_name,event_date').order('event_date'),costAccts()]);
+  if(!vs.length){app.innerHTML='<div class="card">Add a vendor first on the <a href="#/vendors">Vendors</a> page.</div>';return}
+  app.innerHTML=`<h2>Vendor bill</h2><div class="card"><label>Vendor</label><select id="bv">${opts(vs,'id',v=>v.name)}</select>
+  <label>Event (leave blank for a general expense)</label><select id="bb"><option value="">General business expense</option>${bs.map(b=>`<option value="${b.id}" ${b.id===pre?'selected':''}>${esc(b.ref+' '+b.customer_name+' '+b.event_date)}</option>`).join('')}</select>
+  <label>Expense type</label><select id="ba">${opts(ca,'code',a=>a.code+' '+a.name)}</select>
+  <div class="g2"><div><label>Guests (catering)</label><input id="bg" type="number"></div><div><label>Rate per person</label><input id="br" type="number"></div>
+  <div><label>Amount (PKR) *</label><input id="bm" type="number"></div><div><label>Invoice no.</label><input id="bi"></div>
+  <div><label>Bill date</label><input id="bd" type="date" value="${today()}"></div><div><label>Due date</label><input id="bu" type="date"></div></div>
+  <label>Description</label><input id="bx"><button id="bsave">Save bill</button></div>`;
+  const calc=()=>{if($('#bg').value&&$('#br').value)$('#bm').value=$('#bg').value*$('#br').value};$('#bg').oninput=calc;$('#br').oninput=calc;
+  $('#bsave').onclick=async()=>{const {error}=await db.rpc('record_vendor_bill',{p_vendor:$('#bv').value,p_booking:$('#bb').value||null,p_date:$('#bd').value,p_due:$('#bu').value||null,
+    p_invoice:$('#bi').value||null,p_desc:$('#bx').value||null,p_account:$('#ba').value,p_amount:Number($('#bm').value),p_guests:$('#bg').value?Number($('#bg').value):null,p_rate:$('#br').value?Number($('#br').value):null});
+    error?fail(error):location.hash=pre?'#/b/'+pre:'#/vendors'};
+}
+async function expenseForm(){
+  const [{data:bs},ca,cash]=await Promise.all([db.from('bookings').select('id,ref,customer_name').order('event_date'),costAccts(),cashAccts()]);
+  app.innerHTML=`<h2>Record expense</h2><div class="card"><div class="g2"><div><label>Date</label><input id="ed" type="date" value="${today()}"></div><div><label>Amount (PKR) *</label><input id="em2" type="number"></div>
+  <div><label>Expense type</label><select id="ea">${opts(ca,'code',a=>a.code+' '+a.name)}</select></div><div><label>Paid from</label><select id="ec">${opts(cash,'code',a=>a.name)}</select></div></div>
+  <label>Event (optional)</label><select id="eb"><option value="">General business expense</option>${bs.map(b=>`<option value="${b.id}">${esc(b.ref+' '+b.customer_name)}</option>`).join('')}</select>
+  <label>Description</label><input id="ex"><button id="esave">Save expense</button></div>`;
+  $('#esave').onclick=async()=>{const {error}=await db.rpc('record_expense',{p_date:$('#ed').value,p_account:$('#ea').value,p_amount:Number($('#em2').value),p_paid_from:$('#ec').value,p_booking:$('#eb').value||null,p_desc:$('#ex').value||null});
+    error?fail(error):(location.hash='#/',route())};
+}
+const monthStart=()=>today().slice(0,8)+'01';
+async function partnersView(){
+  const [{data:ps},{data:tx},cash,ca]=await Promise.all([db.from('partners').select('*').order('name'),db.from('partner_txns').select('*'),cashAccts(),costAccts()]);
+  const sum=(id,ks,f=()=>true)=>tx.filter(t=>t.partner_id===id&&ks.includes(t.kind)&&!t.voided&&f(t)).reduce((s,t)=>s+Number(t.amount),0);
+  const own=ps.reduce((s,p)=>s+Number(p.ownership_pct),0), prof=ps.reduce((s,p)=>s+Number(p.profit_pct),0);
+  app.innerHTML=`<h2>Partners</h2>`+(ps.length&&(own!==100||prof!==100)?`<div class="err">Ownership totals ${own}% and profit share totals ${prof}%. Each should total 100%.</div>`:'')+
+  `<div class="card wide"><table><tr><th>Partner</th><th class="n">Own %</th><th class="n">Profit %</th><th class="n">Capital</th><th class="n">Drawings</th><th class="n">Owed to partner</th><th class="n">Loan</th></tr>
+  ${ps.map(p=>`<tr><td>${esc(p.name)}</td><td class="n">${p.ownership_pct}</td><td class="n">${p.profit_pct}</td><td class="n">${pkr(sum(p.id,['capital']))}</td><td class="n">${pkr(sum(p.id,['drawing']))}</td>
+  <td class="n">${pkr(sum(p.id,['paid_expense'])-sum(p.id,['reimbursement']))}</td><td class="n">${pkr(sum(p.id,['loan_in'])-sum(p.id,['loan_repay']))}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">No partners yet</td></tr>'}</table></div>
+  <h3>Add partner</h3><div class="card"><label>Name *</label><input id="pn"><div class="g2"><div><label>Ownership %</label><input id="po" type="number"></div><div><label>Profit share %</label><input id="pp" type="number"></div></div>
+  <button id="padd">Save partner</button></div>
+  <h3>Recent partner transactions</h3><div class="card">${tx.filter(t=>!t.voided).sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,8).map(t=>`<div class="row"><span>${t.txn_date} ${esc((ps.find(p=>p.id===t.partner_id)||{}).name||'')} ${t.kind.replace('_',' ')}</span><span>${pkr(t.amount)} <a href="#" data-pv="${t.id}">Void</a></span></div>`).join('')||'<span class="mute">None yet</span>'}</div>
+  ${ps.length?`<h3>Record partner transaction</h3><div class="card"><div class="g2"><div><label>Partner</label><select id="tp">${opts(ps,'id',p=>p.name)}</select></div>
+  <div><label>Type</label><select id="tk"><option value="drawing">Draw / withdrawal</option><option value="capital">Capital contributed</option><option value="paid_expense">Partner paid a business expense</option><option value="reimbursement">Business reimburses partner</option><option value="loan_in">Partner loan to business</option><option value="loan_repay">Loan repayment</option></select></div>
+  <div><label>Date</label><input id="td" type="date" value="${today()}"></div><div><label>Amount (PKR)</label><input id="ta" type="number"></div>
+  <div><label>Cash / bank account</label><select id="tc">${opts(cash,'code',a=>a.name)}</select></div><div><label>Expense type (if partner paid)</label><select id="te">${opts(ca,'code',a=>a.code+' '+a.name)}</select></div></div>
+  <label>Notes</label><input id="tn"><button id="tsave">Save transaction</button></div>
+  <h3>Profit distribution</h3><div class="card"><div class="g2"><div><label>From</label><input id="df" type="date" value="${monthStart()}"></div><div><label>To</label><input id="dt" type="date" value="${today()}"></div></div>
+  <button id="dcalc" class="alt">Calculate</button><div id="dres"></div></div>`:''}`;
+  $('#padd').onclick=async()=>{if(!$('#pn').value.trim())return fail('Partner name is required.');
+    const {error}=await db.from('partners').insert({name:$('#pn').value.trim(),ownership_pct:Number($('#po').value||0),profit_pct:Number($('#pp').value||0)});error?fail(error):route()};
+  document.querySelectorAll('[data-pv]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for voiding?');if(!r)return;
+    const {error}=await db.rpc('void_partner_txn',{p_txn:a.dataset.pv,p_date:today(),p_reason:r});error?fail(error):route()});
+  if(!ps.length) return;
+  $('#tsave').onclick=async()=>{const k=$('#tk').value;const {error}=await db.rpc('record_partner_txn',{p_partner:$('#tp').value,p_kind:k,p_date:$('#td').value,p_amount:Number($('#ta').value),
+    p_account:k==='paid_expense'?null:$('#tc').value,p_exp:k==='paid_expense'?$('#te').value:null,p_booking:null,p_notes:$('#tn').value||null});error?fail(error):route()};
+  $('#dcalc').onclick=async()=>{const f=$('#df').value,t=$('#dt').value;const {data,error}=await db.rpc('period_profit',{p_from:f,p_to:t});if(error)return fail(error);
+    const r=data[0], net=Number(r.net);
+    $('#dres').innerHTML=`<div class="sum"><div><small>Revenue</small><strong>${pkr(r.revenue)}</strong></div><div><small>Costs and expenses</small><strong>${pkr(Number(r.direct_costs)+Number(r.expenses))}</strong></div>
+    <div><small>Net profit</small><strong class="${net>=0?'ok':'warn'}">${pkr(net)}</strong></div></div><div class="wide"><table><tr><th>Partner</th><th class="n">Profit %</th><th class="n">Allocated</th><th class="n">Withdrawn</th><th class="n">Remaining</th></tr>
+    ${ps.map(p=>{const a=net*p.profit_pct/100,w=sum(p.id,['drawing'],x=>x.txn_date>=f&&x.txn_date<=t);return `<tr><td>${esc(p.name)}</td><td class="n">${p.profit_pct}</td><td class="n">${pkr(Math.round(a))}</td><td class="n">${pkr(w)}</td><td class="n">${pkr(Math.round(a-w))}</td></tr>`}).join('')}</table></div>
+    <p class="mute">Revenue counts only events marked completed. Draws are not expenses.</p>`};
+}
+async function cashView(){
+  const [{data:tb},{data:rc}]=await Promise.all([db.from('trial_balance').select('*').gte('code','1000').lt('code','1200').order('code'),db.from('reconciliations').select('*').order('created_at',{ascending:false}).limit(8)]);
+  const o=opts(tb,'code',a=>a.name), tot=tb.reduce((s,a)=>s+a.debit-a.credit,0);
+  app.innerHTML=`<h2>Cash and bank</h2><div class="card"><div class="sum"><div><small>Total</small><strong>${pkr(tot)}</strong></div></div>
+  ${tb.map(a=>`<div class="row"><span>${a.code} ${esc(a.name)}</span><strong>${pkr(a.debit-a.credit)}</strong></div>`).join('')}</div>
+  <h3>Transfer between accounts</h3><div class="card"><div class="g2"><div><label>From</label><select id="xf">${o}</select></div><div><label>To</label><select id="xt">${o}</select></div>
+  <div><label>Amount (PKR)</label><input id="xa" type="number"></div><div><label>Date</label><input id="xd" type="date" value="${today()}"></div></div><button id="xgo">Transfer</button></div>
+  <h3>Opening balance</h3><div class="card"><div class="g2"><div><label>Account</label><select id="oa">${o}</select></div><div><label>Amount (PKR)</label><input id="om" type="number"></div></div>
+  <button id="ogo" class="alt">Save opening balance</button></div>
+  <h3>Reconcile</h3><div class="card"><div class="g2"><div><label>Account</label><select id="ra">${o}</select></div><div><label>As of</label><input id="rd" type="date" value="${today()}"></div></div>
+  <label>Counted cash or statement balance (PKR)</label><input id="rb" type="number"><button id="rgo" class="alt">Check difference</button><div id="rres"></div>
+  ${rc.map(r=>`<div class="row mute"><span>${r.as_of} ${r.account_code}</span><span class="${r.difference==0?'ok':'warn'}">${r.difference==0?'Matched':'Difference '+pkr(r.difference)}</span></div>`).join('')}</div>
+  <h3>Add bank or cash account</h3><div class="card"><label>Name (for example Meezan)</label><input id="an"><button id="ago" class="alt">Add account</button></div>`;
+  $('#xgo').onclick=async()=>{const {error}=await db.rpc('transfer_funds',{p_date:$('#xd').value,p_from:$('#xf').value,p_to:$('#xt').value,p_amount:Number($('#xa').value),p_notes:null});error?fail(error):route()};
+  $('#ogo').onclick=async()=>{const {error}=await db.rpc('opening_balance',{p_account:$('#oa').value,p_date:today(),p_amount:Number($('#om').value)});error?fail(error):route()};
+  $('#rgo').onclick=async()=>{const {data,error}=await db.rpc('reconcile',{p_account:$('#ra').value,p_as_of:$('#rd').value,p_actual:Number($('#rb').value),p_notes:null});
+    if(error)return fail(error);$('#rres').innerHTML=`<p class="${data==0?'ok':'warn'}">${data==0?'Matched.':'Difference of '+pkr(data)+'. Find the missing entry before closing the day.'}</p>`};
+  $('#ago').onclick=async()=>{const n=$('#an').value.trim();if(!n)return fail('Enter an account name.');
+    const code=String(Math.max(1100,...tb.map(a=>+a.code))+1);if(+code>=1200)return fail('No free account codes left.');
+    const {error}=await db.from('accounts').insert({code,name:n,type:'asset'});error?fail(error):route()};
+}
+const repNav=()=>`<p class="mute">${[['pl','Profit and loss'],['events','Event profit'],['ar','Receivables'],['bs','Balance sheet'],['cf','Cash flow'],['ledger','Ledger'],['tb','Trial balance']].map(([h,l])=>`<a href="#/${h}">${l}</a>`).join(' | ')}</p>`;
+const daysSince=d=>Math.floor((Date.now()-new Date(d))/864e5);
+const sumBy=(a,f)=>a.reduce((s,x)=>s+Number(f(x)||0),0);
+const kpi=(l,v,c='')=>`<div><small>${l}</small><strong class="${c}">${v}</strong></div>`;
+
+async function home(){
+  const t=today(), ms=monthStart();
+  const [{data:bk},{data:sch},{data:bills},{data:mp},{data:tp},{data:tb}]=await Promise.all([
+    db.from('booking_summary').select('*').neq('status','Cancelled'),db.from('payment_schedule').select('*'),
+    db.from('vendor_bill_summary').select('*').gt('outstanding',0),db.rpc('period_profit',{p_from:ms,p_to:t}),db.rpc('period_profit',{p_from:t,p_to:t}),
+    db.from('trial_balance').select('*').gte('code','1000').lt('code','1200')]);
+  const ev=bk.filter(b=>b.event_date===t), up=bk.filter(b=>b.event_date>t&&!b.completed).slice().sort((a,b)=>a.event_date.localeCompare(b.event_date)).slice(0,5);
+  const rec=sumBy(bk,b=>b.outstanding), pay=sumBy(bills,b=>b.outstanding), cash=sumBy(tb,a=>a.debit-a.credit), m=mp[0], d=tp[0];
+  const over=[];
+  bk.forEach(b=>{let pool=Number(b.received);sch.filter(s=>s.booking_id===b.id).sort((x,y)=>x.due_date.localeCompare(y.due_date)).forEach(s=>{
+    const paid=Math.min(pool,s.amount);pool-=paid;if(paid<s.amount&&s.due_date<t)over.push({b,s,left:s.amount-paid})})});
+  const dueBills=bills.filter(b=>b.due_date&&b.due_date<=new Date(Date.now()+7*864e5).toISOString().slice(0,10));
+  app.innerHTML=`<h2>Today, ${t}</h2><div class="card"><div class="row"><strong>${ev.length} event${ev.length===1?'':'s'} today</strong><a href="#/today">Collect payments</a></div>
+  ${ev.map(b=>`<div class="row"><span>${esc(b.customer_name)}, ${esc(b.event_type)}, ${b.guests||'?'} guests</span><span class="${b.outstanding>0?'warn':'ok'}">Balance ${pkr(b.outstanding)}</span></div>`).join('')}</div>
+  <div class="card"><div class="sum">${kpi("Today's revenue",pkr(d.revenue))}${kpi("Today's expenses",pkr(Number(d.direct_costs)+Number(d.expenses)))}${kpi("Today's profit",pkr(d.net),d.net>=0?'ok':'warn')}</div>
+  <div class="sum">${kpi('Month revenue',pkr(m.revenue))}${kpi('Month expenses',pkr(Number(m.direct_costs)+Number(m.expenses)))}${kpi('Month profit',pkr(m.net),m.net>=0?'ok':'warn')}</div>
+  <div class="sum">${kpi('Receivables',pkr(rec),rec?'warn':'')}${kpi('Payables',pkr(pay),pay?'warn':'')}${kpi('Cash and bank',pkr(cash))}</div>
+  <div class="sum">${kpi('Bookings',bk.length)}${kpi('Average booking',pkr(bk.length?sumBy(bk,b=>b.contract_value)/bk.length:0))}${kpi('Customer balances',pkr(rec))}</div></div>
+  <h3>Overdue customer payments</h3><div class="card">${over.map(o=>`<a class="item row" href="#/b/${o.b.id}"><span>${esc(o.b.customer_name)}, ${esc(o.s.label)}, due ${o.s.due_date}</span><span class="warn">${pkr(o.left)}</span></a>`).join('')||'<span class="ok">None overdue</span>'}</div>
+  <h3>Upcoming events</h3><div class="card">${up.map(b=>`<a class="item row" href="#/b/${b.id}"><span>${b.event_date} ${esc(b.customer_name)}</span><span class="${b.outstanding>0?'warn':'ok'}">Due ${pkr(b.outstanding)}</span></a>`).join('')||'<span class="mute">No upcoming events</span>'}</div>
+  <h3>Vendor payments due within 7 days</h3><div class="card">${dueBills.map(b=>`<div class="row"><span>${esc(b.vendor_name)} due ${b.due_date}</span><span class="warn">${pkr(b.outstanding)}</span></div>`).join('')||'<span class="mute">None due</span>'}
+  <a href="#/vendors">Open payables</a></div>`;
+}
+async function plView(){
+  const {data:bs}=await db.from('bookings').select('id,ref,customer_name').order('event_date',{ascending:false});
+  const y=today().slice(0,4), q=Math.floor((+today().slice(5,7)-1)/3)*3+1, qs=`${y}-${String(q).padStart(2,'0')}-01`;
+  app.innerHTML=repNav()+`<h2>Profit and loss</h2><div class="card"><div class="g2"><div><label>From</label><input id="pf" type="date" value="${monthStart()}"></div><div><label>To</label><input id="pt" type="date" value="${today()}"></div></div>
+  <label>Event (optional)</label><select id="pe"><option value="">All events and business expenses</option>${bs.map(b=>`<option value="${b.id}">${esc(b.ref+' '+b.customer_name)}</option>`).join('')}</select>
+  <div class="row"><button id="pm" class="alt">This month</button><button id="pq" class="alt">This quarter</button><button id="py" class="alt">This year</button><button id="pgo">Show</button></div></div><div id="plr"></div>`;
+  const set=(f)=>{$('#pf').value=f;$('#pt').value=today();run()};
+  $('#pm').onclick=()=>set(monthStart());$('#pq').onclick=()=>set(qs);$('#py').onclick=()=>set(y+'-01-01');$('#pgo').onclick=run;
+  async function run(){
+    const {data,error}=await db.rpc('account_totals',{p_from:$('#pf').value,p_to:$('#pt').value,p_booking:$('#pe').value||null});if(error)return fail(error);
+    const g=t=>data.filter(r=>r.type===t), tot=t=>sumBy(g(t),r=>r.amount), rev=tot('revenue'), dc=tot('direct_cost'), ex=tot('expense'), gp=rev-dc, net=gp-ex;
+    const sec=(h,t)=>`<tr><th colspan="2">${h}</th></tr>${g(t).map(r=>`<tr><td>${r.code} ${esc(r.name)}</td><td class="n">${pkr(r.amount)}</td></tr>`).join('')}`;
+    $('#plr').innerHTML=`<div class="card wide"><table>${sec('Revenue','revenue')}<tr><th>Total revenue</th><th class="n">${pkr(rev)}</th></tr>${sec('Direct costs','direct_cost')}
+    <tr><th>Gross profit</th><th class="n">${pkr(gp)}</th></tr>${sec('Operating expenses','expense')}<tr><th>Net profit</th><th class="n ${net>=0?'ok':'warn'}">${pkr(net)}</th></tr></table>
+    <p class="mute">Gross margin ${rev?(gp/rev*100).toFixed(1):0}%, net margin ${rev?(net/rev*100).toFixed(1):0}%. Revenue counts only completed events.</p></div>`}
+  run();
+}
+async function eventsView(){
+  const {data,error}=await db.from('event_profit').select('*').neq('status','Cancelled').order('event_date',{ascending:false});if(error)throw error;
+  const row=e=>{const cost=Number(e.direct_costs)+Number(e.other_costs), base=e.completed?Number(e.revenue):Number(e.contract_value), p=base-cost;return {e,cost,p,m:base?p/base*100:0}};
+  const rs=data.map(row), done=rs.filter(r=>r.e.completed);
+  app.innerHTML=repNav()+`<h2>Event profitability</h2><div class="card"><div class="sum">${kpi('Completed events',done.length)}${kpi('Average profit',pkr(done.length?sumBy(done,r=>r.p)/done.length:0))}
+  ${kpi('Total profit',pkr(sumBy(done,r=>r.p)))}</div></div><div class="card wide"><table><tr><th>Event</th><th class="n">Revenue</th><th class="n">Costs</th><th class="n">Profit</th><th class="n">Margin</th></tr>
+  ${rs.map(r=>`<tr><td><a href="#/b/${r.e.id}">${esc(r.e.customer_name)}</a><div class="mute">${r.e.event_date}${r.e.completed?'':' (expected)'}</div></td><td class="n">${pkr(r.e.completed?r.e.revenue:r.e.contract_value)}</td><td class="n">${pkr(r.cost)}</td>
+  <td class="n ${r.p>=0?'ok':'warn'}">${pkr(r.p)}</td><td class="n">${r.m.toFixed(0)}%</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No events yet</td></tr>'}</table>
+  <p class="mute">Costs are those tagged to the event. Overhead allocation (rent, utilities, salaries) is not included yet.</p></div>`;
+}
+async function arView(){
+  const {data,error}=await db.from('booking_summary').select('*').gt('outstanding',0).neq('status','Cancelled').order('event_date');if(error)throw error;
+  const bk=['Current','1-30','31-60','61-90','90+'], bucket=b=>{const n=daysSince(b.event_date);return n<=0?0:n<=30?1:n<=60?2:n<=90?3:4}, tot=bk.map((_,i)=>sumBy(data.filter(b=>bucket(b)===i),b=>b.outstanding));
+  app.innerHTML=repNav()+`<h2>Customer receivables</h2><div class="card"><div class="sum">${kpi('Total receivable',pkr(sumBy(data,b=>b.outstanding)),'warn')}</div>
+  <div class="mute">${bk.map((k,i)=>k+': '+pkr(tot[i])).join(' | ')}</div></div><div class="card wide"><table><tr><th>Booking</th><th class="n">Total</th><th class="n">Paid</th><th class="n">Outstanding</th><th class="n">Days overdue</th></tr>
+  ${data.map(b=>`<tr><td><a href="#/b/${b.id}">${esc(b.customer_name)}</a><div class="mute">${esc(b.ref)}, due ${b.event_date}</div></td><td class="n">${pkr(b.contract_value)}</td><td class="n">${pkr(b.received)}</td><td class="n warn">${pkr(b.outstanding)}</td><td class="n">${Math.max(0,daysSince(b.event_date))}</td></tr>`).join('')||'<tr><td colspan="5" class="ok">Nothing outstanding</td></tr>'}</table>
+  <p class="mute">Balances are treated as due on the event date.</p></div>`;
+}
+async function bsView(){
+  app.innerHTML=repNav()+`<h2>Balance sheet</h2><div class="card"><label>As of</label><input id="bd2" type="date" value="${today()}"><button id="bgo">Show</button></div><div id="bsr"></div>`;
+  const run=async()=>{const {data,error}=await db.rpc('balances_at',{p_date:$('#bd2').value});if(error)return fail(error);
+    const g=t=>data.filter(r=>r.type===t&&Number(r.balance)!==0), earn=-sumBy(data.filter(r=>['revenue','direct_cost','expense'].includes(r.type)),r=>r.balance);
+    const A=sumBy(g('asset'),r=>r.balance), L=-sumBy(g('liability'),r=>r.balance), E=-sumBy(g('equity'),r=>r.balance)+earn;
+    const sec=(h,t,s)=>`<tr><th colspan="2">${h}</th></tr>${g(t).map(r=>`<tr><td>${r.code} ${esc(r.name)}</td><td class="n">${pkr(s*r.balance)}</td></tr>`).join('')}`;
+    $('#bsr').innerHTML=`<div class="card wide"><table>${sec('Assets','asset',1)}<tr><th>Total assets</th><th class="n">${pkr(A)}</th></tr>${sec('Liabilities','liability',-1)}<tr><th>Total liabilities</th><th class="n">${pkr(L)}</th></tr>
+    ${sec('Equity','equity',-1)}<tr><td>Profit for the period (not yet closed)</td><td class="n">${pkr(earn)}</td></tr><tr><th>Total equity</th><th class="n">${pkr(E)}</th></tr></table>
+    <p class="${Math.abs(A-L-E)<0.01?'ok':'warn'}">${Math.abs(A-L-E)<0.01?'Assets equal liabilities plus equity.':'Out of balance.'}</p><p class="mute">Customer advances appear as a liability until the event is completed.</p></div>`};
+  $('#bgo').onclick=run;run();
+}
+const ctlNav=()=>`<p class="mute">${[['close','Day close and month lock'],['journal','Journal'],['access','Users and audit log']].map(([h,l])=>`<a href="#/${h}">${l}</a>`).join(' | ')}</p>`;
+async function closeView(){
+  const [{data:cl},{data:lk}]=await Promise.all([db.from('day_closings').select('*').order('close_date',{ascending:false}).limit(10),db.from('period_locks').select('*').order('locked_through',{ascending:false}).limit(1)]);
+  app.innerHTML=ctlNav()+`<h2>Daily closing</h2><div class="card"><label>Date</label><input id="cd" type="date" value="${today()}"><button id="cpv" class="alt">Show day</button><div id="cres"></div></div>
+  <h3>Recent closings</h3><div class="card">${cl.map(c=>`<div class="row"><span>${c.close_date}${c.reopened?' (reopened)':''}</span><span class="${c.difference==0?'ok':'warn'}">${c.difference==0?'Matched':'Difference '+pkr(c.difference)}</span>${c.reopened?'':`<a href="#" data-ro="${c.close_date}">Reopen</a>`}</div>`).join('')||'<span class="mute">No days closed yet</span>'}</div>
+  <h3>Month lock</h3><div class="card"><p>${lk[0]?'Locked through '+lk[0].locked_through:'No month is locked'}</p><label>Lock everything up to and including</label><input id="lm" type="date">
+  <div class="row"><button id="lgo">Lock</button><button id="ugo" class="alt">Unlock latest</button></div></div>`;
+  $('#cpv').onclick=async()=>{const d=$('#cd').value;const {data,error}=await db.rpc('day_summary',{p_date:d});if(error)return fail(error);const s=data[0];
+    $('#cres').innerHTML=`<div class="sum">${kpi('Opening cash',pkr(s.opening))}${kpi('Cash received',pkr(s.cash_in))}${kpi('Cash paid out',pkr(s.cash_out))}</div>
+    <div class="sum">${kpi('Bank received',pkr(s.bank_in))}${kpi('Bank paid out',pkr(s.bank_out))}${kpi('Partner draws',pkr(s.drawings))}</div>
+    <div class="sum">${kpi('Expected cash',pkr(s.expected))}</div><label>Counted cash (PKR)</label><input id="ca" type="number" value="${s.expected}"><label>Notes</label><input id="cn">
+    <button id="cgo">Close this day</button><p class="mute">Cash covers Main and Petty cash. Once closed, nothing can be posted to this date until the owner reopens it.</p>`;
+    $('#cgo').onclick=async()=>{const {error}=await db.rpc('close_day',{p_date:d,p_actual:Number($('#ca').value),p_notes:$('#cn').value||null});error?fail(error):route()}};
+  document.querySelectorAll('[data-ro]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for reopening '+a.dataset.ro+'?');if(!r)return;
+    const {error}=await db.rpc('reopen_day',{p_date:a.dataset.ro,p_reason:r});error?fail(error):route()});
+  $('#lgo').onclick=async()=>{if(!$('#lm').value)return fail('Choose a date.');const {error}=await db.rpc('lock_month',{p_through:$('#lm').value});error?fail(error):route()};
+  $('#ugo').onclick=async()=>{if(!confirm('Unlock the latest locked period?'))return;const {error}=await db.rpc('unlock_month');error?fail(error):route()};
+}
+async function journalView(){
+  const [{data:ac},{data:en}]=await Promise.all([db.from('accounts').select('*').order('code'),db.from('journal_entries').select('id,entry_date,ref,memo,source,reversed_of').order('created_at',{ascending:false}).limit(25)]);
+  const rev=new Set(en.map(e=>e.reversed_of).filter(Boolean)), o=`<option value="">-</option>`+opts(ac,'code',a=>a.code+' '+a.name);
+  app.innerHTML=ctlNav()+`<h2>Manual journal</h2><div class="card"><div class="g2"><div><label>Date</label><input id="jd" type="date" value="${today()}"></div><div><label>Description *</label><input id="jm"></div></div>
+  ${[0,1,2,3].map(i=>`<div class="g2"><div><label>Account</label><select data-ja="${i}">${o}</select></div><div class="g2"><div><label>Debit</label><input data-jd="${i}" type="number"></div><div><label>Credit</label><input data-jc="${i}" type="number"></div></div></div>`).join('')}
+  <button id="jgo">Post journal</button><p class="mute">Debits must equal credits. Use this for adjustments only.</p></div>
+  <h3>Recent entries</h3><div class="card wide"><table>${en.map(e=>`<tr><td>${e.entry_date}</td><td>${esc(e.ref||'')}<div class="mute">${esc(e.memo||'')}</div></td><td>${e.source}</td>
+  <td>${['manual','expense','transfer','opening'].includes(e.source)&&!rev.has(e.id)?`<a href="#" data-rv="${e.id}">Reverse</a>`:rev.has(e.id)?'Reversed':''}</td></tr>`).join('')}</table></div>`;
+  $('#jgo').onclick=async()=>{const lines=[];for(let i=0;i<4;i++){const a=document.querySelector(`[data-ja="${i}"]`).value,d=Number(document.querySelector(`[data-jd="${i}"]`).value||0),c=Number(document.querySelector(`[data-jc="${i}"]`).value||0);
+    if(a&&(d||c))lines.push({account:a,debit:d,credit:c})}
+    const {error}=await db.rpc('manual_journal',{p_date:$('#jd').value,p_memo:$('#jm').value,p_lines:lines});error?fail(error):route()};
+  document.querySelectorAll('[data-rv]').forEach(a=>a.onclick=async e=>{e.preventDefault();const r=prompt('Reason for reversing this entry?');if(!r)return;
+    const {error}=await db.rpc('reverse_entry',{p_entry:a.dataset.rv,p_date:today(),p_reason:r});error?fail(error):route()});
+}
+async function accessView(){
+  const [{data:role},{data:us},{data:au}]=await Promise.all([db.rpc('app_role'),db.from('user_roles').select('*').order('created_at'),db.from('audit_log').select('*').order('at',{ascending:false}).limit(60)]);
+  app.innerHTML=ctlNav()+`<h2>Users and roles</h2><div class="card"><p>Your role: <strong>${esc(role)}</strong></p><p><button id="mfa" class="alt">Set up two-factor sign-in</button></p><div id="mfar"></div>
+  ${us.length?us.map(u=>`<div class="row"><span>${esc(u.email)}</span><span>${u.role} <a href="#" data-rm="${esc(u.email)}">Remove</a></span></div>`).join(''):`<p>No owner is set. Claim the owner role to turn on role-based access.</p><button id="claim">Make me the owner</button>`}
+  ${role==='owner'&&us.length?`<h3>Add or change a user</h3><p class="mute">Create the login in Supabase Auth first, then assign a role here.</p><div class="g2"><div><label>Email</label><input id="ue" type="email"></div>
+  <div><label>Role</label><select id="ur">${['accountant','manager','receptionist','cashier','viewer','owner'].map(r=>`<option>${r}</option>`).join('')}</select></div></div><button id="uset" class="alt">Save role</button>`:''}</div>
+  <h3>Audit log</h3><div class="card wide"><table><tr><th>When</th><th>Who</th><th>What</th></tr>${au.map(a=>`<tr><td>${new Date(a.at).toLocaleString('en-GB')}</td><td>${esc(a.email||'')}</td><td>${a.action} ${a.table_name}${a.action==='UPDATE'?`<div class="mute">${esc(Object.keys(a.new_row).filter(k=>JSON.stringify(a.new_row[k])!==JSON.stringify(a.old_row[k])).map(k=>k+': '+(a.old_row[k]??'')+' to '+(a.new_row[k]??'')).join('; ').slice(0,160))}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="3" class="mute">No entries visible to your role</td></tr>'}</table></div>`;
+  $('#mfa').onclick=async()=>{const {data,error}=await db.auth.mfa.enroll({factorType:'totp'});if(error)return fail(error);
+    $('#mfar').innerHTML=`<img src="${data.totp.qr_code}" alt="QR code" width="160"><p class="mute">Scan with an authenticator app, or enter ${esc(data.totp.secret)}. Then type the 6-digit code.</p><input id="mc" placeholder="123456"><button id="mv">Confirm</button>`;
+    $('#mv').onclick=async()=>{const {error:e2}=await db.auth.mfa.challengeAndVerify({factorId:data.id,code:$('#mc').value});e2?fail(e2):$('#mfar').innerHTML='<p class="ok">Two-factor sign-in is on.</p>'}};
+  const c=$('#claim');if(c)c.onclick=async()=>{const {error}=await db.rpc('claim_owner');error?fail(error):route()};
+  const s=$('#uset');if(s)s.onclick=async()=>{const {error}=await db.rpc('set_role',{p_email:$('#ue').value,p_role:$('#ur').value});error?fail(error):route()};
+  document.querySelectorAll('[data-rm]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Remove this user\'s role?'))return;const {error}=await db.rpc('remove_role',{p_email:a.dataset.rm});error?fail(error):route()});
+}
+db.auth.onAuthStateChange(async ev=>{if(ev==='PASSWORD_RECOVERY'){const p=prompt('Enter a new password (at least 8 characters)');
+  if(p){const {error}=await db.auth.updateUser({password:p});error?fail(error):alert('Password updated')}}});
+const getSettings=async()=>Object.fromEntries(((await db.from('settings').select('*')).data||[]).map(r=>[r.key,r.value]));
+const waNumber=p=>{let d=String(p||'').replace(/\D/g,'');if(d.startsWith('0'))d='92'+d.slice(1);return d}; // Pakistan: 03xx becomes 923xx
+
+async function form(){
+  const [{data:pk},{data:sv}]=await Promise.all([db.from('packages').select('*').eq('active',true).order('name'),db.from('services').select('*').eq('active',true).order('name')]);
+  const f=(id,l,t='text',v='')=>`<div><label for="${id}">${l}</label><input id="${id}" type="${t}" value="${v}"></div>`;
+  app.innerHTML=`<h2>New booking</h2><div class="card">${f('customer_name','Customer name *')}
+  <div class="g2">${f('bride','Bride')}${f('groom','Groom')}${f('guardian','Father / guardian')}${f('phone','Phone','tel')}${f('whatsapp','WhatsApp','tel')}${f('email','Email','email')}</div>
+  <div class="g2"><div><label>Event type</label><select id="event_type">${['Wedding','Walima','Mehndi','Barat','Corporate event','Birthday','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+  ${f('event_date','Event date *','date')}${f('start_time','Start','time','19:00')}${f('end_time','End','time','23:00')}${f('hall','Hall / marquee','text','Main')}${f('guests','Expected guests','number')}</div>
+  <label>Package</label><select id="pkg"><option value="">Custom price</option>${pk.map(p=>`<option value="${p.id}">${esc(p.name)} (${pkr(p.base_price)})</option>`).join('')}</select>
+  <div class="g2">${f('base_price','Base price (PKR) *','number')}${f('discount','Discount (PKR)','number','0')}</div>
+  ${sv.length?`<label>Services and add-ons</label>${sv.map(s=>`<div class="row"><label style="margin:0"><input type="checkbox" data-s="${s.id}" style="width:auto"> ${esc(s.name)} (${pkr(s.rate)})</label><input data-q="${s.id}" type="number" value="1" style="width:70px"></div>`).join('')}`:'<p class="mute">Add packages and services on the Setup page.</p>'}
+  <p id="tot" class="mute"></p><label for="notes">Notes</label><textarea id="notes" rows="2"></textarea><button id="save">Save booking</button></div>`;
+  const items=()=>sv.filter(s=>document.querySelector(`[data-s="${s.id}"]`).checked).map(s=>({description:s.name,qty:Number(document.querySelector(`[data-q="${s.id}"]`).value||1),rate:Number(s.rate)}));
+  const recalc=()=>{const ex=items().reduce((a,i)=>a+i.qty*i.rate,0);$('#tot').textContent='Services '+pkr(ex)+'. Contract value '+pkr(Number($('#base_price').value||0)+ex-Number($('#discount').value||0))};
+  $('#pkg').onchange=()=>{const p=pk.find(x=>x.id===$('#pkg').value);if(p)$('#base_price').value=p.base_price;recalc()};
+  document.querySelectorAll('#app input').forEach(i=>i.addEventListener('input',recalc));
+  $('#save').onclick=async()=>{
+    const r={};['customer_name','bride','groom','guardian','phone','whatsapp','email','event_type','event_date','start_time','end_time','hall','guests','base_price','discount','notes'].forEach(k=>{const v=$('#'+k).value.trim();r[k]=v===''?null:v});
+    if(!r.customer_name||!r.event_date) return fail('Customer name and event date are required.');
+    const its=items();['base_price','discount'].forEach(k=>r[k]=Number(r[k]||0));r.extras=its.reduce((a,i)=>a+i.qty*i.rate,0);
+    const p=pk.find(x=>x.id===$('#pkg').value);r.package_name=p?p.name:null;
+    const {data,error}=await db.from('bookings').insert(r).select().single();
+    if(error) return fail(error.message.includes('exclude')||error.code==='23P01'?'This hall is already booked for an overlapping time on that date.':error);
+    if(its.length) await db.from('booking_items').insert(its.map(i=>({...i,booking_id:data.id})));
+    location.hash='#/b/'+data.id};
+}
+async function makeInvoice(b){
+  const [{data:tx},{data:its}]=await Promise.all([db.from('tax_rates').select('*').eq('active',true).lte('effective_from',today()).order('effective_from',{ascending:false}).limit(1),db.from('booking_items').select('amount').eq('booking_id',b.id)]);
+  const sub=Number(b.base_price)+sumBy(its||[],i=>i.amount), taxable=sub-Number(b.discount), t=tx&&tx[0], r=t?Number(t.rate):0;
+  const tax=t?(t.inclusive?taxable*r/(100+r):taxable*r/100):0, total=t&&!t.inclusive?taxable+tax:taxable;
+  const {data,error}=await db.from('invoices').insert({booking_id:b.id,due_date:b.event_date,subtotal:sub,discount:b.discount,tax_name:t?.name||null,tax_rate:t?r:null,tax_inclusive:t?.inclusive??null,tax_amount:Math.round(tax*100)/100,total:Math.round(total*100)/100}).select().single();
+  error?fail(error):location.hash='#/inv/'+data.id;
+}
+async function invoiceView(id){
+  const {data:inv,error}=await db.from('invoices').select('*').eq('id',id).single();if(error)throw error;
+  const [{data:b},{data:its},st]=await Promise.all([db.from('booking_summary').select('*').eq('id',inv.booking_id).single(),db.from('booking_items').select('*').eq('booking_id',inv.booking_id),getSettings()]);
+  const {data:bp}=await db.from('bookings').select('package_name').eq('id',b.id).single();
+  const bal=inv.total-b.received, rate=(d,q=1)=>pkr(d);
+  app.innerHTML=`<div class="noprint"><p><a href="#/b/${b.id}">Back to booking</a></p><div class="row"><button onclick="print()">Print or save as PDF</button><button id="wa" class="alt">WhatsApp</button><button id="em3" class="alt">Email</button>${inv.voided?'':'<button id="vi" class="alt">Void invoice</button>'}</div></div>
+  <div class="card" id="invoice"><div class="row"><div><h2 style="margin:0">${esc(st.business_name||'Deep Sky Marquee')}</h2><div class="mute">${esc(st.address||'')} ${esc(st.phone||'')}</div></div><div style="text-align:right"><strong>${inv.voided?'VOID ':''}Invoice ${inv.number}</strong><div class="mute">Issued ${inv.issue_date}${inv.due_date?', due '+inv.due_date:''}</div></div></div>
+  <p><strong>${esc(b.customer_name)}</strong><br>${esc(b.event_type)}, ${b.event_date} ${b.start_time.slice(0,5)}-${b.end_time.slice(0,5)}, ${esc(b.hall)}${b.guests?', '+b.guests+' guests':''}<br><span class="mute">Booking ${esc(b.ref)}</span></p>
+  <div class="wide"><table><tr><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>
+  <tr><td>${esc(bp.package_name||'Venue hire')}</td><td class="n">1</td><td class="n">${pkr(b.base_price)}</td><td class="n">${pkr(b.base_price)}</td></tr>
+  ${its.map(i=>`<tr><td>${esc(i.description)}</td><td class="n">${i.qty}</td><td class="n">${pkr(i.rate)}</td><td class="n">${pkr(i.amount)}</td></tr>`).join('')}
+  <tr><td colspan="3" class="n">Subtotal</td><td class="n">${pkr(inv.subtotal)}</td></tr>
+  ${inv.discount>0?`<tr><td colspan="3" class="n">Discount</td><td class="n">-${pkr(inv.discount)}</td></tr>`:''}
+  ${inv.tax_name?`<tr><td colspan="3" class="n">${esc(inv.tax_name)} ${inv.tax_rate}%${inv.tax_inclusive?' (included)':''}</td><td class="n">${pkr(inv.tax_amount)}</td></tr>`:''}
+  <tr><th colspan="3" class="n">Total</th><th class="n">${pkr(inv.total)}</th></tr><tr><td colspan="3" class="n">Paid to date</td><td class="n">${pkr(b.received)}</td></tr>
+  <tr><th colspan="3" class="n">Balance due</th><th class="n">${pkr(bal)}</th></tr></table></div>
+  ${st.payment_terms?`<p>Payment terms: ${esc(st.payment_terms)}</p>`:''}${st.bank_details?`<p>Payment details: ${esc(st.bank_details)}</p>`:''}${inv.notes?`<p>${esc(inv.notes)}</p>`:''}</div>`;
+  const msg=`Assalam o Alaikum ${b.customer_name}, invoice ${inv.number} from ${st.business_name||'Deep Sky Marquee'}: total ${pkr(inv.total)}, paid ${pkr(b.received)}, balance due ${pkr(bal)}.`;
+  $('#wa').onclick=()=>open('https://wa.me/'+waNumber(b.whatsapp||b.phone)+'?text='+encodeURIComponent(msg));
+  $('#em3').onclick=()=>location.href='mailto:'+(b.email||'')+'?subject='+encodeURIComponent('Invoice '+inv.number)+'&body='+encodeURIComponent(msg);
+  const vi=$('#vi');if(vi)vi.onclick=async()=>{if(!confirm('Void this invoice?'))return;const {error}=await db.from('invoices').update({voided:true}).eq('id',id);error?fail(error):route()};
+}
+async function calendarView(){
+  const m=window.calM||today().slice(0,7), [y,mo]=m.split('-').map(Number), first=new Date(Date.UTC(y,mo-1,1)), days=new Date(Date.UTC(y,mo,0)).getUTCDate(), lead=(first.getUTCDay()+6)%7;
+  const {data,error}=await db.from('booking_summary').select('*').gte('event_date',m+'-01').lte('event_date',m+'-'+days).neq('status','Cancelled').order('start_time');if(error)throw error;
+  const cells=[...Array(lead).fill(null),...Array.from({length:days},(_,i)=>i+1)];
+  app.innerHTML=`<div class="row"><button id="cp" class="alt">Previous</button><h2>${first.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}</h2><button id="cn2" class="alt">Next</button></div>
+  <div class="card wide"><div style="display:grid;grid-template-columns:repeat(7,minmax(46px,1fr));gap:2px;font-size:12px">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<b class="mute">${d}</b>`).join('')}
+  ${cells.map(d=>{if(!d)return '<div></div>';const ds=`${m}-${String(d).padStart(2,'0')}`;return `<div style="min-height:62px;border:1px solid var(--line);padding:2px;${ds===today()?'background:#E8EEFF':''}"><b>${d}</b>${data.filter(e=>e.event_date===ds).map(e=>`<a href="#/b/${e.id}" style="display:block;color:${e.outstanding>0?'var(--warn)':'var(--ok)'};text-decoration:none;overflow:hidden;white-space:nowrap">${esc(e.customer_name)}</a>`).join('')}</div>`}).join('')}</div></div>
+  <p class="mute">Green is fully paid, orange has a balance. Overlapping bookings in the same hall are blocked when you save.</p>`;
+  const sh=n=>{const d=new Date(Date.UTC(y,mo-1+n,1));window.calM=d.toISOString().slice(0,7);route()};$('#cp').onclick=()=>sh(-1);$('#cn2').onclick=()=>sh(1);
+}
+async function cfView(){
+  app.innerHTML=repNav()+`<h2>Cash flow</h2><div class="card"><div class="g2"><div><label>From</label><input id="ff" type="date" value="${monthStart()}"></div><div><label>To</label><input id="ft" type="date" value="${today()}"></div></div><button id="fgo">Show</button></div><div id="fr"></div>`;
+  const names={payment:'Customer payments',refund:'Refunds',cancellation:'Cancellation refunds',vendor_payment:'Vendor payments',expense:'Expenses paid',partner:'Partner capital, draws and loans',opening:'Opening balances',manual:'Manual journals',reversal:'Reversals and voids'};
+  const run=async()=>{const f=$('#ff').value,t=$('#ft').value;const [{data,error},{data:ob}]=await Promise.all([db.rpc('cash_flow',{p_from:f,p_to:t}),db.rpc('cash_before',{p_date:f})]);if(error)return fail(error);
+    const net=sumBy(data,r=>r.inflow-r.outflow);
+    $('#fr').innerHTML=`<div class="card wide"><table><tr><td>Opening cash and bank</td><td class="n">${pkr(ob)}</td><td></td></tr><tr><th>Activity</th><th class="n">In</th><th class="n">Out</th></tr>
+    ${data.map(r=>`<tr><td>${names[r.source]||r.source}</td><td class="n">${r.inflow>0?pkr(r.inflow):''}</td><td class="n">${r.outflow>0?pkr(r.outflow):''}</td></tr>`).join('')}
+    <tr><th>Net change</th><th class="n" colspan="2">${pkr(net)}</th></tr><tr><th>Closing cash and bank</th><th class="n" colspan="2">${pkr(Number(ob)+net)}</th></tr></table><p class="mute">Transfers between your own accounts are excluded.</p></div>`};
+  $('#fgo').onclick=run;run();
+}
+async function eventsView(){
+  app.innerHTML=repNav()+`<h2>Event profitability</h2><div class="card"><div class="g2"><div><label>Events from</label><input id="ef" type="date" value="${today().slice(0,4)}-01-01"></div><div><label>to</label><input id="et" type="date" value="${today()}"></div></div>
+  <label style="display:flex;gap:8px;align-items:center"><input id="eo" type="checkbox" style="width:auto"> Allocate general expenses (rent, salaries, utilities) by revenue share</label><button id="ego">Show</button></div><div id="er"></div>`;
+  const run=async()=>{const f=$('#ef').value,t=$('#et').value;const [{data,error},{data:pp}]=await Promise.all([db.from('event_profit').select('*').neq('status','Cancelled').gte('event_date',f).lte('event_date',t).order('event_date',{ascending:false}),db.rpc('period_profit',{p_from:f,p_to:t})]);if(error)return fail(error);
+    const done=data.filter(e=>e.completed), revTot=sumBy(done,e=>e.revenue), pool=$('#eo').checked?Math.max(0,Number(pp[0].expenses)-sumBy(data,e=>e.other_costs)):0;
+    const rs=data.map(e=>{const cost=Number(e.direct_costs)+Number(e.other_costs), base=e.completed?Number(e.revenue):Number(e.contract_value), oh=e.completed&&revTot?pool*e.revenue/revTot:0, p=base-cost-oh;return {e,cost,oh,base,p,m:base?p/base*100:0}}), dn=rs.filter(r=>r.e.completed);
+    $('#er').innerHTML=`<div class="card"><div class="sum">${kpi('Completed events',dn.length)}${kpi('Average profit',pkr(dn.length?sumBy(dn,r=>r.p)/dn.length:0))}${kpi('Total profit',pkr(sumBy(dn,r=>r.p)))}</div></div>
+    <div class="card wide"><table><tr><th>Event</th><th class="n">Revenue</th><th class="n">Costs</th>${pool?'<th class="n">Overhead</th>':''}<th class="n">Profit</th><th class="n">Margin</th></tr>
+    ${rs.map(r=>`<tr><td><a href="#/b/${r.e.id}">${esc(r.e.customer_name)}</a><div class="mute">${r.e.event_date}${r.e.completed?'':' (expected)'}</div></td><td class="n">${pkr(r.base)}</td><td class="n">${pkr(r.cost)}</td>${pool?`<td class="n">${pkr(Math.round(r.oh))}</td>`:''}<td class="n ${r.p>=0?'ok':'warn'}">${pkr(Math.round(r.p))}</td><td class="n">${r.m.toFixed(0)}%</td></tr>`).join('')||'<tr><td colspan="6" class="mute">No events in this range</td></tr>'}</table>
+    <p class="mute">Costs are those tagged to the event. Overhead is an estimate: general expenses in the range not tagged to an event, shared by revenue among completed events.</p></div>`};
+  $('#ego').onclick=run;run();
+}
+async function setupView(){
+  const [st,{data:pk},{data:sv},{data:tx},{data:rc},ca,cash]=await Promise.all([getSettings(),db.from('packages').select('*').order('name'),db.from('services').select('*').order('name'),
+    db.from('tax_rates').select('*').order('effective_from',{ascending:false}),db.from('recurring_entries').select('*'),costAccts(),cashAccts()]);
+  const fld=(k,l)=>`<label>${l}</label><input data-set="${k}" value="${esc(st[k]||'')}">`;
+  app.innerHTML=`<h2>Setup</h2><div class="card"><h3 style="margin-top:0">Business details (on invoices)</h3>${fld('business_name','Business name')}${fld('address','Address')}${fld('phone','Phone')}${fld('bank_details','Bank / payment details')}${fld('payment_terms','Payment terms')}
+  ${fld('discount_threshold_pct','Discount approval threshold (% of price; blank means no limit)')}<button id="sset">Save details</button></div>
+  <h3>Packages</h3><div class="card">${pk.map(p=>`<div class="row"><span>${esc(p.name)}</span><span>${pkr(p.base_price)}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="kn"></div><div><label>Base price (PKR)</label><input id="kp" type="number"></div></div>
+  <label>What is included</label><input id="kd"><button id="kadd" class="alt">Add package</button></div>
+  <h3>Services and add-ons</h3><div class="card">${sv.map(s=>`<div class="row"><span>${esc(s.name)} (${s.kind})</span><span>${pkr(s.rate)}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="sn"></div><div><label>Rate (PKR)</label><input id="sr" type="number"></div></div>
+  <label>Type</label><select id="sk"><option value="addon">Add-on</option><option value="service">Service</option></select><button id="sadd2" class="alt">Add</button></div>
+  <h3>Taxes</h3><div class="card"><p class="mute">No rates are preloaded. Confirm the correct rate and treatment for event venue services in Islamabad with a qualified Pakistan tax adviser. Invoices show tax using the latest rate in effect; the tax is not posted to the ledger automatically.</p>
+  ${tx.map(t=>`<div class="row"><span>${esc(t.name)} ${t.rate}%${t.inclusive?' inclusive':''}</span><span class="mute">from ${t.effective_from}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="tn2"></div><div><label>Rate %</label><input id="tr" type="number" step="0.01"></div>
+  <div><label>Effective from</label><input id="te2" type="date"></div><div><label>Price includes tax?</label><select id="ti"><option value="false">No, add on top</option><option value="true">Yes, included</option></select></div></div><button id="tadd" class="alt">Add tax rate</button></div>
+  <h3>Recurring expenses</h3><div class="card">${rc.map(r=>`<div class="row"><span>${esc(r.description)}, day ${r.day_of_month}</span><span>${pkr(r.amount)}</span></div>`).join('')}<div class="g2"><div><label>Description</label><input id="rd2"></div><div><label>Amount (PKR)</label><input id="ra2" type="number"></div>
+  <div><label>Expense type</label><select id="rt">${opts(ca,'code',a=>a.code+' '+a.name)}</select></div><div><label>Paid from</label><select id="rp">${opts(cash,'code',a=>a.name)}</select></div><div><label>Day of month (1-28)</label><input id="rdy" type="number" value="1"></div></div>
+  <div class="row"><button id="radd" class="alt">Add recurring expense</button><button id="rrun">Post due expenses now</button></div></div>
+  <h3>Backup</h3><div class="card"><p class="mute">Downloads every table as one JSON file. Do this monthly and keep a copy outside Supabase.</p><button id="bk" class="alt">Download backup</button></div>`;
+  const go=async(p)=>{const {error}=await p;error?fail(error):route()};
+  $('#sset').onclick=()=>go(db.from('settings').upsert([...document.querySelectorAll('[data-set]')].map(i=>({key:i.dataset.set,value:i.value}))));
+  $('#kadd').onclick=()=>go(db.from('packages').insert({name:$('#kn').value,base_price:Number($('#kp').value||0),description:$('#kd').value||null}));
+  $('#sadd2').onclick=()=>go(db.from('services').insert({name:$('#sn').value,rate:Number($('#sr').value||0),kind:$('#sk').value}));
+  $('#tadd').onclick=()=>go(db.from('tax_rates').insert({name:$('#tn2').value,rate:Number($('#tr').value),effective_from:$('#te2').value,inclusive:$('#ti').value==='true'}));
+  $('#radd').onclick=()=>go(db.from('recurring_entries').insert({description:$('#rd2').value,amount:Number($('#ra2').value),account_code:$('#rt').value,paid_from:$('#rp').value,day_of_month:Number($('#rdy').value||1)}));
+  $('#rrun').onclick=async()=>{const {data,error}=await db.rpc('run_recurring',{p_date:today()});error?fail(error):(alert(data+' expense(s) posted'),route())};
+  $('#bk').onclick=async()=>{const T=['settings','accounts','bookings','booking_items','payment_schedule','payments','vendors','vendor_bills','vendor_payments','partners','partner_txns','journal_entries','journal_lines','reconciliations','day_closings','period_locks','cancellations','invoices','packages','services','tax_rates','recurring_entries','user_roles'];
+    const out={exported_at:new Date().toISOString()};for(const t of T){const {data,error}=await db.from(t).select('*').range(0,49999);if(error)return fail(t+': '+error.message);out[t]=data}
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='deepsky-backup-'+today()+'.json';a.click()};
+}
+addEventListener('hashchange',route);route();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script></body></html>
