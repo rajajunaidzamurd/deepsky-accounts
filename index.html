@@ -34,7 +34,33 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;b
 td.n,th.n{text-align:right}.wide{overflow-x:auto}
 .err{background:#FDECE4;color:var(--warn);padding:10px;border-radius:4px;margin-bottom:10px}
 @media print{header,.noprint{display:none}body{background:#fff}.card{border:0}}
-</style></head><body>
+
+/* Stage 7 theme */
+:root{--ink:#0F1B3D;--paper:#EEF1F8;--accent:#3556E0;--gold:#D9A441;--ok:#0E8F63;--warn:#C8470F;--line:#E1E6F2;--mute:#617089;--shadow:0 1px 2px rgba(15,27,61,.06),0 8px 22px rgba(15,27,61,.07)}
+[hidden]{display:none!important}
+body{background:radial-gradient(900px 320px at 50% -120px,#D7E0FA,transparent),var(--paper)}
+header{display:block;position:sticky;top:0;z-index:10;padding:12px 16px 10px;background:linear-gradient(135deg,#0A1433,#1E3A8A);box-shadow:0 4px 18px rgba(10,20,51,.3)}
+header b{display:flex;align-items:center;gap:8px;font:600 19px "Fraunces",Georgia,serif;letter-spacing:.2px}
+header b::before{content:"\2726";color:var(--gold);font-size:17px}
+nav{display:flex;gap:4px;overflow-x:auto;padding-top:10px;scrollbar-width:none}nav::-webkit-scrollbar{display:none}
+nav a{margin:0;padding:7px 13px;border-radius:999px;white-space:nowrap;color:#C5D0F2;font-size:14px;border:0}
+nav a.on{background:rgba(255,255,255,.17);color:#fff;border:0}
+main{padding:18px 14px 40px}
+h2{font:600 26px "Fraunces",Georgia,serif;margin:6px 0 14px}
+h3{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:24px 2px 8px}
+.card{border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+a{color:var(--accent)}a.item{transition:transform .12s,box-shadow .12s}a.item:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(15,27,61,.12)}
+.sum div{background:linear-gradient(#fff,#F5F7FD);border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:12px;padding:10px 12px}
+.sum small{font-size:11px;letter-spacing:.06em;text-transform:uppercase}.sum strong{font-size:18px;display:block;margin-top:2px}
+@media(max-width:520px){.sum{grid-template-columns:1fr 1fr}}
+input,select,textarea{border-radius:10px;padding:10px 11px;transition:border-color .12s,box-shadow .12s}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px rgba(53,86,224,.15)}
+button{background:linear-gradient(#4264EA,#2F4FD0);border-radius:10px;padding:11px 18px;box-shadow:0 2px 8px rgba(47,79,208,.3)}
+button.alt{background:#fff;box-shadow:none}button:active{transform:translateY(1px)}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}tr:hover td{background:#F7F9FE}
+.err{border-radius:12px;border:1px solid #F3C9B6}
+</style><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+</head><body>
 <header><b>Deep Sky Marquee</b><nav id="nav" hidden>
 <a href="#/">Home</a><a href="#/bookings">Bookings</a><a href="#/new">New booking</a><a href="#/calendar">Calendar</a><a href="#/today">Today</a><a href="#/vendors">Vendors</a><a href="#/expense">Expense</a><a href="#/partners">Partners</a><a href="#/cash">Cash</a><a href="#/pl">Reports</a><a href="#/close">Controls</a><a href="#/setup">Setup</a><a href="#" id="out">Sign out</a></nav></header>
 <main id="app"></main>
@@ -45,7 +71,7 @@ const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pkr=n=>'PKR '+Number(n||0).toLocaleString('en-PK');
 const today=()=>new Date().toISOString().slice(0,10);
-const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-level security/.test(e.message||'')?'Your role does not allow this action.':(e.message||e))}</div>`);scrollTo(0,0)};
+const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-level security/.test(e.message||'')?'Your role does not allow this action.':/foreign key/.test(e.message||'')?'This record has financial history and cannot be deleted. Void its entries or cancel it instead.':(e.message||e))}</div>`);scrollTo(0,0)};
 const status=b=>b.status;
 
 async function route(){
@@ -557,6 +583,52 @@ async function setupView(){
     const out={exported_at:new Date().toISOString()};for(const t of T){const {data,error}=await db.from(t).select('*').range(0,49999);if(error)return fail(t+': '+error.message);out[t]=data}
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='deepsky-backup-'+today()+'.json';a.click()};
 }
+function editor(title,fields,vals,save){
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<h3>${title}</h3><div class="g2">${fields.map(([k,l,t])=>`<div><label>${l}</label><input data-k="${k}" type="${t||'text'}" value="${esc(vals[k]??'')}"></div>`).join('')}</div><div class="row"><button>Save changes</button><button class="alt">Cancel</button></div>`;
+  app.prepend(d);scrollTo(0,0);const [s,c]=d.querySelectorAll('button');c.onclick=()=>d.remove();
+  s.onclick=async()=>{const o={};d.querySelectorAll('[data-k]').forEach(i=>o[i.dataset.k]=i.value===''?null:i.value);const e=await save(o);e?fail(e):route()};
+}
+async function crud(heading,table,fields,label){
+  const {data}=await db.from(table).select('*').order('name');
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>${heading}</h3><div class="card">${data.map(r=>`<div class="row"><span>${esc(label(r))}</span><span><a href="#" data-e="${r.id}">Edit</a> &nbsp; <a href="#" data-d="${r.id}">Delete</a></span></div>`).join('')||'<span class="mute">Nothing yet</span>'}</div>`;app.append(c);
+  c.querySelectorAll('[data-e]').forEach(a=>a.onclick=e=>{e.preventDefault();const r=data.find(x=>x.id===a.dataset.e);
+    editor('Edit',fields,r,async o=>{fields.forEach(([k,,t])=>{if(t==='number')o[k]=Number(o[k]||0)});return (await db.from(table).update(o).eq('id',r.id)).error})});
+  c.querySelectorAll('[data-d]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Delete this? It cannot be undone.'))return;
+    const {error}=await db.from(table).delete().eq('id',a.dataset.d);error?fail(error):route()});
+}
+const _vv=vendorsView;vendorsView=async function(){await _vv();
+  await crud('Edit or delete vendors','vendors',[['name','Name'],['category','Category'],['phone','Phone','tel'],['cnic_ntn','CNIC / NTN'],['bank_info','Bank details']],v=>v.name)};
+const _pv=partnersView;partnersView=async function(){await _pv();
+  await crud('Edit or delete partners','partners',[['name','Name'],['ownership_pct','Ownership %','number'],['profit_pct','Profit share %','number']],p=>p.name+' ('+p.profit_pct+'% of profit)')};
+const _ef=expenseForm;expenseForm=async function(){await _ef();
+  const [{data:en},{data:rv}]=await Promise.all([db.from('journal_entries').select('id,entry_date,memo,booking_id,journal_lines(account_code,debit,credit,accounts(name))').eq('source','expense').order('entry_date',{ascending:false}).limit(40),
+    db.from('journal_entries').select('reversed_of').not('reversed_of','is',null)]);
+  const gone=new Set(rv.map(r=>r.reversed_of)), rows=en.filter(e=>!gone.has(e.id)).map(e=>({e,dr:e.journal_lines.find(l=>l.debit>0),cr:e.journal_lines.find(l=>l.credit>0)}));
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>Recent expenses</h3><div class="card">${rows.map(({e,dr})=>`<div class="row"><span>${e.entry_date} ${esc(dr.accounts.name)}<div class="mute">${esc(e.memo||'')}</div></span><span>${pkr(dr.debit)}<br><a href="#" data-e="${e.id}">Edit</a> &nbsp; <a href="#" data-d="${e.id}">Delete</a></span></div>`).join('')||'<span class="mute">No expenses yet</span>'}</div>`;app.append(c);
+  c.querySelectorAll('[data-e]').forEach(a=>a.onclick=ev=>{ev.preventDefault();const {e,dr,cr}=rows.find(x=>x.e.id===a.dataset.e);
+    editor('Edit expense',[['date','Date','date'],['amount','Amount (PKR)','number'],['desc','Description']],{date:e.entry_date,amount:dr.debit,desc:e.memo},async o=>{
+      const r=prompt('Reason for the change? The old entry is reversed and a corrected one is posted.');if(!r)return {message:'Cancelled.'};
+      return (await db.rpc('replace_expense',{p_entry:e.id,p_date:o.date,p_account:dr.account_code,p_amount:Number(o.amount),p_paid_from:cr.account_code,p_booking:e.booking_id,p_desc:o.desc,p_reason:r})).error})});
+  c.querySelectorAll('[data-d]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const r=prompt('Reason for deleting this expense? A reversing entry will be posted.');if(!r)return;
+    const {error}=await db.rpc('reverse_entry',{p_entry:a.dataset.d,p_date:today(),p_reason:r});error?fail(error):route()});
+};
+const _dt=detail;detail=async function(id){await _dt(id);
+  const {data:b}=await db.from('bookings').select('*').eq('id',id).single();
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>Manage booking</h3><div class="card"><div class="row"><button id="eb" class="alt">Edit details</button><button id="db2" class="alt">Delete booking</button></div><p class="mute">Delete works only if no money or costs were recorded. Otherwise use Cancel booking. Edit a payment from the Payments list above.</p></div>`;app.append(c);
+  $('#eb').onclick=()=>editor('Edit booking',[['customer_name','Customer name'],['bride','Bride'],['groom','Groom'],['guardian','Father / guardian'],['phone','Phone','tel'],['whatsapp','WhatsApp','tel'],['email','Email','email'],['event_type','Event type'],['event_date','Event date','date'],['start_time','Start','time'],['end_time','End','time'],['hall','Hall'],['guests','Guests','number'],['notes','Notes']],b,
+    async o=>{if(!o.customer_name||!o.event_date)return {message:'Customer name and event date are required.'};o.guests=o.guests?Number(o.guests):null;return (await db.from('bookings').update(o).eq('id',id)).error});
+  $('#db2').onclick=async()=>{if(!confirm('Delete this booking permanently?'))return;const {error}=await db.rpc('delete_booking',{p_booking:id});error?fail(error):location.hash='#/bookings'};
+  document.querySelectorAll('[data-v]').forEach(a=>{const l=document.createElement('a');l.href='#';l.textContent='Edit';a.after(' ',l);
+    l.onclick=async e=>{e.preventDefault();const {data:p}=await db.from('payments').select('*').eq('id',a.dataset.v).single();
+      editor('Edit payment '+p.receipt_no,[['paid_on','Date','date'],['amount','Amount (PKR)','number'],['method','Method'],['reference','Reference'],['received_by','Received by'],['notes','Notes']],p,async o=>{
+        if(o.paid_on!==p.paid_on||Number(o.amount)!==Number(p.amount)){const r=prompt('Date or amount changed, so the old payment is voided and re-entered with a new receipt. Reason?');if(!r)return {message:'Cancelled.'};
+          return (await db.rpc('replace_payment',{p_payment:p.id,p_date:o.paid_on,p_amount:Number(o.amount),p_method:o.method,p_ref:o.reference,p_by:o.received_by,p_notes:o.notes,p_reason:r})).error}
+        return (await db.from('payments').update({method:o.method,reference:o.reference,received_by:o.received_by,notes:o.notes}).eq('id',p.id)).error})}});
+};
 addEventListener('hashchange',route);route();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script></body></html>
