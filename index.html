@@ -5,7 +5,9 @@
 <link rel="manifest" href="manifest.json"><meta name="theme-color" content="#16213E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script>addEventListener("error",function(e){var a=document.getElementById("app");if(a)a.insertAdjacentHTML("afterbegin",'<div style="background:#fdece4;color:#c2410c;padding:10px;margin:10px;border-radius:4px">Error: '+String(e.message).replace(/</g,"&lt;")+"</div>")})</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\/script>')</script>
 <style>
 :root{--ink:#16213E;--paper:#F2F4F8;--panel:#fff;--accent:#2F5BEA;--ok:#0F8A5F;--warn:#C2410C;--line:#D9DEE8;--mute:#5B6579}
 *{box-sizing:border-box}
@@ -37,7 +39,7 @@ td.n,th.n{text-align:right}.wide{overflow-x:auto}
 <a href="#/">Home</a><a href="#/bookings">Bookings</a><a href="#/new">New booking</a><a href="#/calendar">Calendar</a><a href="#/today">Today</a><a href="#/vendors">Vendors</a><a href="#/expense">Expense</a><a href="#/partners">Partners</a><a href="#/cash">Cash</a><a href="#/pl">Reports</a><a href="#/close">Controls</a><a href="#/setup">Setup</a><a href="#" id="out">Sign out</a></nav></header>
 <main id="app"></main>
 <script>
-const SUPABASE_URL='PASTE_PROJECT_URL', SUPABASE_KEY='PASTE_ANON_KEY';
+const SUPABASE_URL='https://sehlimfjjpzquzioqrjb.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlaGxpbWZqanB6cXV6aW9xcmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzY0MjcsImV4cCI6MjEwNjcxMjQyN30.OU0FMX_pNDfAbwlon-8fr4Xi8KDzEbgl1iHR7-qgNsU';
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
