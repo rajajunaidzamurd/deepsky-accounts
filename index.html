@@ -571,14 +571,14 @@ async function setupView(){
   const fld=(k,l)=>`<label>${l}</label><input data-set="${k}" value="${esc(st[k]||'')}">`;
   app.innerHTML=`<h2>Setup</h2><div class="card"><h3 style="margin-top:0">Business details (on invoices)</h3>${fld('business_name','Business name')}${fld('address','Address')}${fld('phone','Phone')}${fld('bank_details','Bank / payment details')}${fld('payment_terms','Payment terms')}
   ${fld('discount_threshold_pct','Discount approval threshold (% of price; blank means no limit)')}<button id="sset">Save details</button></div>
-  <h3>Packages</h3><div class="card">${pk.map(p=>`<div class="row"><span>${esc(p.name)}</span><span>${pkr(p.base_price)}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="kn"></div><div><label>Base price (PKR)</label><input id="kp" type="number"></div></div>
+  <h3>Packages</h3><div class="card"><div class="g2"><div><label>Name</label><input id="kn"></div><div><label>Base price (PKR)</label><input id="kp" type="number"></div></div>
   <label>What is included</label><input id="kd"><button id="kadd" class="alt">Add package</button></div>
-  <h3>Services and add-ons</h3><div class="card">${sv.map(s=>`<div class="row"><span>${esc(s.name)} (${s.kind})</span><span>${pkr(s.rate)}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="sn"></div><div><label>Rate (PKR)</label><input id="sr" type="number"></div></div>
+  <h3>Services and add-ons</h3><div class="card"><div class="g2"><div><label>Name</label><input id="sn"></div><div><label>Rate (PKR)</label><input id="sr" type="number"></div></div>
   <label>Type</label><select id="sk"><option value="addon">Add-on</option><option value="service">Service</option></select><button id="sadd2" class="alt">Add</button></div>
   <h3>Taxes</h3><div class="card"><p class="mute">No rates are preloaded. Confirm the correct rate and treatment for event venue services in Islamabad with a qualified Pakistan tax adviser. Invoices show tax using the latest rate in effect; the tax is not posted to the ledger automatically.</p>
-  ${tx.map(t=>`<div class="row"><span>${esc(t.name)} ${t.rate}%${t.inclusive?' inclusive':''}</span><span class="mute">from ${t.effective_from}</span></div>`).join('')}<div class="g2"><div><label>Name</label><input id="tn2"></div><div><label>Rate %</label><input id="tr" type="number" step="0.01"></div>
+  <div class="g2"><div><label>Name</label><input id="tn2"></div><div><label>Rate %</label><input id="tr" type="number" step="0.01"></div>
   <div><label>Effective from</label><input id="te2" type="date"></div><div><label>Price includes tax?</label><select id="ti"><option value="false">No, add on top</option><option value="true">Yes, included</option></select></div></div><button id="tadd" class="alt">Add tax rate</button></div>
-  <h3>Recurring expenses</h3><div class="card">${rc.map(r=>`<div class="row"><span>${esc(r.description)}, day ${r.day_of_month}</span><span>${pkr(r.amount)}</span></div>`).join('')}<div class="g2"><div><label>Description</label><input id="rd2"></div><div><label>Amount (PKR)</label><input id="ra2" type="number"></div>
+  <h3>Recurring expenses</h3><div class="card"><div class="g2"><div><label>Description</label><input id="rd2"></div><div><label>Amount (PKR)</label><input id="ra2" type="number"></div>
   <div><label>Expense type</label><select id="rt">${opts(ca,'code',a=>a.code+' '+a.name)}</select></div><div><label>Paid from</label><select id="rp">${opts(cash,'code',a=>a.name)}</select></div><div><label>Day of month (1-28)</label><input id="rdy" type="number" value="1"></div></div>
   <div class="row"><button id="radd" class="alt">Add recurring expense</button><button id="rrun">Post due expenses now</button></div></div>
   <h3>Backup</h3><div class="card"><p class="mute">Downloads every table as one JSON file. Do this monthly and keep a copy outside Supabase.</p><button id="bk" class="alt">Download backup</button></div>`;
@@ -719,17 +719,62 @@ async function vendorsView(){
 
 const _su=setupView;setupView=async function(){await _su();
   const c=document.createElement('div');
-  c.innerHTML=`<h3>Danger zone</h3><div class="card" style="border-color:#F3C9B6"><strong>Reset everything</strong><p class="mute">Erases all bookings, payments, ledger entries, vendors, partners and closings, and restarts numbering from 1. Kept: users, chart of accounts, settings, taxes, packages and services, and the audit log. A backup file downloads first.</p>
-  <label>Your password</label><input id="rp" type="password" autocomplete="current-password"><label>Type RESET to confirm</label><input id="rw"><button id="rgo2" style="background:#C8470F">Reset system</button></div>`;app.append(c);
+  c.innerHTML=`<h3>Danger zone</h3><div class="card" style="border-color:#F3C9B6"><strong>Reset everything</strong><p class="mute">Erases all bookings, payments, ledger entries, vendors, partners and closings, and restarts numbering from 1. Kept: users, chart of accounts, settings, taxes, packages and services, and the audit log. A backup file downloads first. No password is asked, only the word RESET.</p>
+  <label>Type RESET to confirm</label><input id="rw"><button id="rgo2" style="background:#C8470F">Reset system</button></div>`;app.append(c);
   $('#rgo2').onclick=async()=>{
     if($('#rw').value!=='RESET') return fail('Type RESET in capital letters to confirm.');
-    const {data:{user}}=await db.auth.getUser();const {error:pe}=await db.auth.signInWithPassword({email:user.email,password:$('#rp').value});
-    if(pe) return fail('Wrong password.');
     if(!confirm('Last chance. All business data will be erased. Continue?')) return;
     try{await $('#bk').onclick()}catch(e){}
     const {error}=await db.rpc('reset_all');if(error) return fail(error);
     alert('System reset. Numbering starts again from 1.');location.hash='#/';route()};
 };
+async function crud(heading,table,fields,label,order='name',soft=false){
+  const {data,error:le}=await db.from(table).select('*').order(order);if(le){fail(le);return null}
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>${heading}</h3><div class="card">${data.map(r=>`<div class="row"><span>${esc(label(r))}${r.active===false?' <span class="mute">(hidden)</span>':''}</span><span><a href="#" data-e="${r.id}">Edit</a> &nbsp; <a href="#" data-d="${r.id}">Delete</a></span></div>`).join('')||'<span class="mute">Nothing yet</span>'}</div>`;app.append(c);
+  c.querySelectorAll('[data-e]').forEach(a=>a.onclick=e=>{e.preventDefault();const r=data.find(x=>x.id===a.dataset.e);
+    editor('Edit',fields,r,async o=>{fields.forEach(([k,,t])=>{if(t==='number')o[k]=Number(o[k]||0)});return (await db.from(table).update(o).eq('id',r.id)).error})});
+  c.querySelectorAll('[data-d]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Delete this?'))return;
+    let {error}=await db.from(table).delete().eq('id',a.dataset.d);
+    if(error&&soft&&/foreign key/.test(error.message)){error=(await db.from(table).update({active:false}).eq('id',a.dataset.d)).error;if(!error)alert('It is already used on bookings, so it was hidden instead of deleted.')}
+    error?fail(error):route()});
+  return c;
+}
+const _su2=setupView;setupView=async function(){await _su2();
+  const anchor=[...app.querySelectorAll('h3')].find(h=>h.textContent==='Backup'), put=c=>c&&app.insertBefore(c,anchor);
+  const m=document.createElement('div');
+  m.innerHTML=`<h3>Menu (dishes)</h3><div class="card"><p class="mute">Build your own menu. Dishes are chosen on each booking.</p><div class="g2"><div><label>Dish name *</label><input id="mn"></div><div><label>Category</label><input id="mc" placeholder="Starter, Main, Dessert, Drink"></div>
+  <div><label>Price or cost per head (PKR, optional)</label><input id="mp" type="number"></div><div><label>Description</label><input id="md"></div></div><button id="madd" class="alt">Add dish</button></div>`;app.insertBefore(m,anchor);
+  $('#madd').onclick=async()=>{if(!$('#mn').value.trim())return fail('Dish name is required.');
+    const {error}=await db.from('menu_items').insert({name:$('#mn').value.trim(),category:$('#mc').value.trim()||'Main',price_per_head:Number($('#mp').value||0),description:$('#md').value||null});error?fail(error):route()};
+  put(await crud('Edit or delete menu dishes','menu_items',[['name','Name'],['category','Category'],['price_per_head','Price per head','number'],['description','Description']],d=>d.category+': '+d.name+(d.price_per_head>0?' ('+pkr(d.price_per_head)+'/head)':''),'category'));
+  put(await crud('Edit or delete packages','packages',[['name','Name'],['base_price','Base price (PKR)','number'],['description','What is included']],p=>p.name+' - '+pkr(p.base_price),'name',true));
+  put(await crud('Edit or delete services and add-ons','services',[['name','Name'],['rate','Rate (PKR)','number'],['kind','Type (addon or service)']],s=>s.name+' ('+s.kind+') - '+pkr(s.rate),'name',true));
+  put(await crud('Edit or delete tax rates','tax_rates',[['name','Name'],['rate','Rate %','number'],['effective_from','Effective from','date']],t=>t.name+' '+t.rate+'%','effective_from'));
+  put(await crud('Edit or delete recurring expenses','recurring_entries',[['description','Description'],['amount','Amount (PKR)','number'],['day_of_month','Day of month (1-28)','number']],r=>r.description+', day '+r.day_of_month+' - '+pkr(r.amount),'description'));
+};
+const _dt2=detail;detail=async function(id){await _dt2(id);
+  const [{data:bm},{data:mi},{data:bk},{data:sc}]=await Promise.all([db.from('booking_menu').select('*').eq('booking_id',id).order('created_at'),db.from('menu_items').select('*').eq('active',true).order('category'),
+    db.from('bookings').select('guests').eq('id',id).single(),db.from('payment_schedule').select('*').eq('booking_id',id).order('due_date')]);
+  const pr=Object.fromEntries(mi.map(x=>[x.id,Number(x.price_per_head)])), ph=sumBy(bm,x=>pr[x.menu_item_id]||0), cats=[...new Set(bm.map(x=>x.category||'Other'))];
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>Menu</h3><div class="card">${cats.map(k=>`<div class="mute" style="margin-top:6px">${esc(k)}</div>${bm.filter(x=>(x.category||'Other')===k).map(x=>`<div class="row"><span>${esc(x.name)}${x.notes?' <span class="mute">('+esc(x.notes)+')</span>':''}</span><a href="#" data-mr="${x.id}">Remove</a></div>`).join('')}`).join('')||'<span class="mute">No dishes chosen yet</span>'}
+  ${ph>0?`<p class="mute">Per-head total ${pkr(ph)}${bk.guests?', for '+bk.guests+' guests '+pkr(ph*bk.guests):''}. For reference only, not posted to the books.</p>`:''}
+  <div class="g2"><div><label>Add from your menu</label><select id="mi"><option value="">Choose a dish</option>${mi.map(x=>`<option value="${x.id}">${esc(x.category+': '+x.name)}</option>`).join('')}</select></div>
+  <div><label>Or type a custom dish</label><input id="mx"></div><div><label>Note (optional)</label><input id="mnotes"></div></div><button id="madd2" class="alt">Add to menu</button></div>
+  <h3>Edit payment schedule</h3><div class="card">${sc.map(s=>`<div class="row"><span>${esc(s.label)}, ${s.due_date}</span><span>${pkr(s.amount)} &nbsp; <a href="#" data-se="${s.id}">Edit</a> &nbsp; <a href="#" data-sd="${s.id}">Delete</a></span></div>`).join('')||'<span class="mute">No schedule lines</span>'}</div>`;app.append(c);
+  $('#madd2').onclick=async()=>{const m=mi.find(x=>x.id===$('#mi').value),nm=m?m.name:$('#mx').value.trim();if(!nm)return fail('Choose a dish or type one.');
+    const {error}=await db.from('booking_menu').insert({booking_id:id,menu_item_id:m?m.id:null,name:nm,category:m?m.category:'Other',notes:$('#mnotes').value||null});error?fail(error):route()};
+  c.querySelectorAll('[data-mr]').forEach(a=>a.onclick=async e=>{e.preventDefault();const {error}=await db.from('booking_menu').delete().eq('id',a.dataset.mr);error?fail(error):route()});
+  c.querySelectorAll('[data-se]').forEach(a=>a.onclick=e=>{e.preventDefault();const s=sc.find(x=>x.id===a.dataset.se);
+    editor('Edit schedule line',[['label','Item'],['due_date','Due date','date'],['amount','Expected amount','number']],s,async o=>(await db.from('payment_schedule').update({label:o.label,due_date:o.due_date,amount:Number(o.amount)}).eq('id',s.id)).error)});
+  c.querySelectorAll('[data-sd]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Delete this schedule line?'))return;const {error}=await db.from('payment_schedule').delete().eq('id',a.dataset.sd);error?fail(error):route()});
+};
+const _pv2=partnersView;partnersView=async function(){await _pv2();
+  document.querySelectorAll('[data-pv]').forEach(a=>{const l=document.createElement('a');l.href='#';l.textContent='Edit';a.after(' ',l);
+    l.onclick=async e=>{e.preventDefault();const {data:t}=await db.from('partner_txns').select('*').eq('id',a.dataset.pv).single();
+      editor('Edit partner transaction',[['txn_date','Date','date'],['amount','Amount (PKR)','number'],['notes','Notes']],t,async o=>{const r=prompt('Reason for the change? The old entry is voided and a corrected one is recorded.');if(!r)return {message:'Cancelled.'};
+        return (await db.rpc('replace_partner_txn',{p_txn:t.id,p_date:o.txn_date,p_amount:Number(o.amount),p_notes:o.notes,p_reason:r})).error})}})};
 addEventListener('hashchange',route);route();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script></body></html>
