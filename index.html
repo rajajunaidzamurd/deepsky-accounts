@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Deep Sky Marquee Accounts</title>
-<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#16213E">
+<link rel="manifest" href="manifest.json"><link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20512%20512%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22bg%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%231B7FE6%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%236CC3FF%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id=%22nv%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%230A1433%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%231E3A8A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width=%22512%22%20height=%22512%22%20rx=%22112%22%20fill=%22url(%23nv)%22/%3E%3Cg%20transform=%22translate(64.3,164.3)%20scale(2.7)%22%20fill=%22url(%23bg)%22%3E%3Cpath%20d=%22M70%2041C79%2019%20104%207%20136%204C124%2015%20113%2027%2099%2037C92%2042%2080%2045%2070%2041Z%22/%3E%3Cpath%20d=%22M70%2041C61%2023%2038%2012%206%2011C19%2022%2031%2032%2047%2040C55%2044%2063%2045%2070%2041Z%22/%3E%3Cpath%20d=%22M60%2040C66%2035%2080%2035%2090%2041L108%2044L92%2049C84%2054%2070%2054%2062%2048Z%22/%3E%3Cpath%20d=%22M62%2044C57%2054%2050%2061%2040%2067C55%2065%2070%2059%2080%2049Z%22/%3E%3C/g%3E%3C/svg%3E"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#16213E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script>addEventListener("error",function(e){var a=document.getElementById("app");if(a)a.insertAdjacentHTML("afterbegin",'<div style="background:#fdece4;color:#c2410c;padding:10px;margin:10px;border-radius:4px">Error: '+String(e.message).replace(/</g,"&lt;")+"</div>")})</script>
@@ -59,9 +59,19 @@ button{background:linear-gradient(#4264EA,#2F4FD0);border-radius:10px;padding:11
 button.alt{background:#fff;box-shadow:none}button:active{transform:translateY(1px)}
 th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}tr:hover td{background:#F7F9FE}
 .err{border-radius:12px;border:1px solid #F3C9B6}
+
+/* Stage 8 branding */
+header b::before{content:none}
+header b{gap:10px}.logo{flex:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
+.wm{display:block;font:600 19px/1.05 "Fraunces",Georgia,serif;color:#fff}
+.wm small{display:block;font:600 9.5px/1 "IBM Plex Sans",sans-serif;letter-spacing:.38em;color:var(--gold);margin-top:4px}
+#invoice .logo{width:64px;height:64px;margin-bottom:8px}
+#invoice{border-top:4px solid var(--gold)}
+.led th{position:sticky;top:0;background:#fff}.led td{font-size:13px;white-space:nowrap}.led td.mute{white-space:normal;min-width:120px}
+header b{padding:2px 0}header .logo{height:42px;width:auto}#invoice .logo{width:190px;height:auto;margin-bottom:10px}.card .logo{max-width:100%}
 </style><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
 </head><body>
-<header><b>Deep Sky Marquee</b><nav id="nav" hidden>
+<header><b id="brand"></b><nav id="nav" hidden>
 <a href="#/">Home</a><a href="#/bookings">Bookings</a><a href="#/new">New booking</a><a href="#/calendar">Calendar</a><a href="#/today">Today</a><a href="#/vendors">Vendors</a><a href="#/expense">Expense</a><a href="#/partners">Partners</a><a href="#/cash">Cash</a><a href="#/pl">Reports</a><a href="#/close">Controls</a><a href="#/setup">Setup</a><a href="#" id="out">Sign out</a></nav></header>
 <main id="app"></main>
 <script>
@@ -70,7 +80,7 @@ const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pkr=n=>'PKR '+Number(n||0).toLocaleString('en-PK');
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi'}).format(new Date());
 const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-level security/.test(e.message||'')?'Your role does not allow this action.':/foreign key/.test(e.message||'')?'This record has financial history and cannot be deleted. Void its entries or cancel it instead.':(e.message||e))}</div>`);scrollTo(0,0)};
 const status=b=>b.status;
 
@@ -88,7 +98,7 @@ async function route(){
   }catch(e){fail(e)}
 }
 function login(){
-  app.innerHTML=`<div class="card"><h2>Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
+  app.innerHTML=`<div style="text-align:center;margin:26px 0 8px">${LOGO_L}<h2 style="margin:12px 0 2px">Deep Sky Marquee</h2><div class="mute">Accounts and event management</div></div><div class="card" style="max-width:420px;margin:14px auto"><h2 style="font-size:20px">Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
   <label>Password</label><input id="pw" type="password" autocomplete="current-password"><button id="go">Sign in</button><p><a href="#" id="fp">Forgot password</a></p></div>`;
   $('#fp').onclick=async e=>{e.preventDefault();if(!$('#em').value)return fail('Enter your email first.');
     const {error}=await db.auth.resetPasswordForEmail($('#em').value,{redirectTo:location.href.split('#')[0]});error?fail(error):app.insertAdjacentHTML('afterbegin','<div class="card">Check your email for a reset link.</div>')};
@@ -204,7 +214,7 @@ function receipt(b,pays,p){
   let before=0;for(const x of pays){if(x.id===p.id)break;if(x.voided)continue;before+=x.kind==='refund'?-x.amount:+x.amount}
   const prev=b.contract_value-before, after=prev-(p.kind==='refund'?-p.amount:+p.amount);
   const w=open('','_blank');
-  w.document.write(`<title>${p.receipt_no}</title><body style="font:15px sans-serif;max-width:480px;margin:30px auto"><h2>Deep Sky Marquee, Islamabad</h2><h3>Receipt ${p.receipt_no}</h3>
+  w.document.write(`<title>${p.receipt_no}</title><body style="font:15px sans-serif;max-width:480px;margin:30px auto">${LOGO}<h2>Deep Sky Marquee, Islamabad</h2><h3>Receipt ${p.receipt_no}</h3>
   <p>Customer: ${esc(b.customer_name)}<br>Booking: ${esc(b.ref)}<br>Date: ${p.paid_on}<br>Method: ${esc(p.method)}${p.reference?' ('+esc(p.reference)+')':''}</p>
   <p>Previous balance: ${pkr(prev)}<br><b>${p.kind==='refund'?'Refunded':'Payment'}: ${pkr(p.amount)}</b><br>Remaining balance: ${pkr(after)}</p><p>Received by: ${esc(p.received_by||'')}</p>
   <script>print()<\/script></body>`);w.document.close();
@@ -225,7 +235,7 @@ async function tb(){
 const opts=(l,v,t)=>l.map(x=>`<option value="${x[v]}">${esc(t(x))}</option>`).join('');
 const cashAccts=()=>db.from('accounts').select('*').lt('code','1200').order('code').then(r=>r.data);
 const costAccts=()=>db.from('accounts').select('*').in('type',['direct_cost','expense']).order('code').then(r=>r.data);
-const age=d=>{if(!d)return 'Current';const n=Math.floor((Date.now()-new Date(d))/864e5);return n<=0?'Current':n<=30?'1-30':n<=60?'31-60':n<=90?'61-90':'90+'};
+const age=d=>{if(!d)return 'Current';const n=Math.floor((new Date(today())-new Date(d))/864e5);return n<=0?'Current':n<=30?'1-30':n<=60?'31-60':n<=90?'61-90':'90+'};
 
 async function todayView(){
   const [{data:ev,error},cash]=await Promise.all([db.from('booking_summary').select('*').eq('event_date',today()).neq('status','Cancelled'),cashAccts()]);
@@ -345,7 +355,7 @@ async function cashView(){
     const {error}=await db.from('accounts').insert({code,name:n,type:'asset'});error?fail(error):route()};
 }
 const repNav=()=>`<p class="mute">${[['pl','Profit and loss'],['events','Event profit'],['ar','Receivables'],['bs','Balance sheet'],['cf','Cash flow'],['ledger','Ledger'],['tb','Trial balance']].map(([h,l])=>`<a href="#/${h}">${l}</a>`).join(' | ')}</p>`;
-const daysSince=d=>Math.floor((Date.now()-new Date(d))/864e5);
+const daysSince=d=>Math.floor((new Date(today())-new Date(d))/864e5);
 const sumBy=(a,f)=>a.reduce((s,x)=>s+Number(f(x)||0),0);
 const kpi=(l,v,c='')=>`<div><small>${l}</small><strong class="${c}">${v}</strong></div>`;
 
@@ -360,7 +370,7 @@ async function home(){
   const over=[];
   bk.forEach(b=>{let pool=Number(b.received);sch.filter(s=>s.booking_id===b.id).sort((x,y)=>x.due_date.localeCompare(y.due_date)).forEach(s=>{
     const paid=Math.min(pool,s.amount);pool-=paid;if(paid<s.amount&&s.due_date<t)over.push({b,s,left:s.amount-paid})})});
-  const dueBills=bills.filter(b=>b.due_date&&b.due_date<=new Date(Date.now()+7*864e5).toISOString().slice(0,10));
+  const dueBills=bills.filter(b=>b.due_date&&b.due_date<=new Date(new Date(today()).getTime()+7*864e5).toISOString().slice(0,10));
   app.innerHTML=`<h2>Today, ${t}</h2><div class="card"><div class="row"><strong>${ev.length} event${ev.length===1?'':'s'} today</strong><a href="#/today">Collect payments</a></div>
   ${ev.map(b=>`<div class="row"><span>${esc(b.customer_name)}, ${esc(b.event_type)}, ${b.guests||'?'} guests</span><span class="${b.outstanding>0?'warn':'ok'}">Balance ${pkr(b.outstanding)}</span></div>`).join('')}</div>
   <div class="card"><div class="sum">${kpi("Today's revenue",pkr(d.revenue))}${kpi("Today's expenses",pkr(Number(d.direct_costs)+Number(d.expenses)))}${kpi("Today's profit",pkr(d.net),d.net>=0?'ok':'warn')}</div>
@@ -456,7 +466,7 @@ async function accessView(){
   ${us.length?us.map(u=>`<div class="row"><span>${esc(u.email)}</span><span>${u.role} <a href="#" data-rm="${esc(u.email)}">Remove</a></span></div>`).join(''):`<p>No owner is set. Claim the owner role to turn on role-based access.</p><button id="claim">Make me the owner</button>`}
   ${role==='owner'&&us.length?`<h3>Add or change a user</h3><p class="mute">Create the login in Supabase Auth first, then assign a role here.</p><div class="g2"><div><label>Email</label><input id="ue" type="email"></div>
   <div><label>Role</label><select id="ur">${['accountant','manager','receptionist','cashier','viewer','owner'].map(r=>`<option>${r}</option>`).join('')}</select></div></div><button id="uset" class="alt">Save role</button>`:''}</div>
-  <h3>Audit log</h3><div class="card wide"><table><tr><th>When</th><th>Who</th><th>What</th></tr>${au.map(a=>`<tr><td>${new Date(a.at).toLocaleString('en-GB')}</td><td>${esc(a.email||'')}</td><td>${a.action} ${a.table_name}${a.action==='UPDATE'?`<div class="mute">${esc(Object.keys(a.new_row).filter(k=>JSON.stringify(a.new_row[k])!==JSON.stringify(a.old_row[k])).map(k=>k+': '+(a.old_row[k]??'')+' to '+(a.new_row[k]??'')).join('; ').slice(0,160))}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="3" class="mute">No entries visible to your role</td></tr>'}</table></div>`;
+  <h3>Audit log</h3><div class="card wide"><table><tr><th>When</th><th>Who</th><th>What</th></tr>${au.map(a=>`<tr><td>${new Date(a.at).toLocaleString('en-GB',{timeZone:'Asia/Karachi'})}</td><td>${esc(a.email||'')}</td><td>${a.action} ${a.table_name}${a.action==='UPDATE'?`<div class="mute">${esc(Object.keys(a.new_row).filter(k=>JSON.stringify(a.new_row[k])!==JSON.stringify(a.old_row[k])).map(k=>k+': '+(a.old_row[k]??'')+' to '+(a.new_row[k]??'')).join('; ').slice(0,160))}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="3" class="mute">No entries visible to your role</td></tr>'}</table></div>`;
   $('#mfa').onclick=async()=>{const {data,error}=await db.auth.mfa.enroll({factorType:'totp'});if(error)return fail(error);
     $('#mfar').innerHTML=`<img src="${data.totp.qr_code}" alt="QR code" width="160"><p class="mute">Scan with an authenticator app, or enter ${esc(data.totp.secret)}. Then type the 6-digit code.</p><input id="mc" placeholder="123456"><button id="mv">Confirm</button>`;
     $('#mv').onclick=async()=>{const {error:e2}=await db.auth.mfa.challengeAndVerify({factorId:data.id,code:$('#mc').value});e2?fail(e2):$('#mfar').innerHTML='<p class="ok">Two-factor sign-in is on.</p>'}};
@@ -507,7 +517,7 @@ async function invoiceView(id){
   const {data:bp}=await db.from('bookings').select('package_name').eq('id',b.id).single();
   const bal=inv.total-b.received, rate=(d,q=1)=>pkr(d);
   app.innerHTML=`<div class="noprint"><p><a href="#/b/${b.id}">Back to booking</a></p><div class="row"><button onclick="print()">Print or save as PDF</button><button id="wa" class="alt">WhatsApp</button><button id="em3" class="alt">Email</button>${inv.voided?'':'<button id="vi" class="alt">Void invoice</button>'}</div></div>
-  <div class="card" id="invoice"><div class="row"><div><h2 style="margin:0">${esc(st.business_name||'Deep Sky Marquee')}</h2><div class="mute">${esc(st.address||'')} ${esc(st.phone||'')}</div></div><div style="text-align:right"><strong>${inv.voided?'VOID ':''}Invoice ${inv.number}</strong><div class="mute">Issued ${inv.issue_date}${inv.due_date?', due '+inv.due_date:''}</div></div></div>
+  <div class="card" id="invoice"><div class="row"><div>${LOGO}<h2 style="margin:0">${esc(st.business_name||'Deep Sky Marquee')}</h2><div class="mute">${esc(st.address||'')} ${esc(st.phone||'')}</div></div><div style="text-align:right"><strong>${inv.voided?'VOID ':''}Invoice ${inv.number}</strong><div class="mute">Issued ${inv.issue_date}${inv.due_date?', due '+inv.due_date:''}</div></div></div>
   <p><strong>${esc(b.customer_name)}</strong><br>${esc(b.event_type)}, ${b.event_date} ${b.start_time.slice(0,5)}-${b.end_time.slice(0,5)}, ${esc(b.hall)}${b.guests?', '+b.guests+' guests':''}<br><span class="mute">Booking ${esc(b.ref)}</span></p>
   <div class="wide"><table><tr><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>
   <tr><td>${esc(bp.package_name||'Venue hire')}</td><td class="n">1</td><td class="n">${pkr(b.base_price)}</td><td class="n">${pkr(b.base_price)}</td></tr>
@@ -628,6 +638,97 @@ const _dt=detail;detail=async function(id){await _dt(id);
         if(o.paid_on!==p.paid_on||Number(o.amount)!==Number(p.amount)){const r=prompt('Date or amount changed, so the old payment is voided and re-entered with a new receipt. Reason?');if(!r)return {message:'Cancelled.'};
           return (await db.rpc('replace_payment',{p_payment:p.id,p_date:o.paid_on,p_amount:Number(o.amount),p_method:o.method,p_ref:o.reference,p_by:o.received_by,p_notes:o.notes,p_reason:r})).error}
         return (await db.from('payments').update({method:o.method,reference:o.reference,received_by:o.received_by,notes:o.notes}).eq('id',p.id)).error})}});
+};
+const LOGO=`<svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 545.8 172.5" width="150" height="47" role="img" aria-label="Deep Sky"><defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B7FE6"/><stop offset="1" stop-color="#4FB4FF"/></linearGradient>
+<linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3B6B"/><stop offset="1" stop-color="#E0113F"/></linearGradient></defs>
+<g transform="translate(188.158065,2) scale(1.193548)" fill="url(#bg)">
+<path d="M70 41C79 19 104 7 136 4C124 15 113 27 99 37C92 42 80 45 70 41Z"/>
+<path d="M70 41C61 23 38 12 6 11C19 22 31 32 47 40C55 44 63 45 70 41Z"/>
+<path d="M60 40C66 35 80 35 90 41L108 44L92 49C84 54 70 54 62 48Z"/>
+<path d="M62 44C57 54 50 61 40 67C55 65 70 59 80 49Z"/></g><g transform="translate(10,162.5)" fill="url(#tg)"><path d="M69.3 -35.1Q69.3 -24.8 64.75 -16.8Q60.2 -8.8 51.85 -4.4Q43.5 0.0 32.5 0.0H6.2V-70.2H32.5Q43.6 -70.2 51.900000000000006 -65.80000000000001Q60.2 -61.400000000000006 64.75 -53.45Q69.3 -45.5 69.3 -35.1ZM51.900000000000006 -35.1Q51.900000000000006 -44.800000000000004 46.5 -50.2Q41.1 -55.6 31.400000000000002 -55.6H23.3V-14.8H31.400000000000002Q41.1 -14.8 46.5 -20.1Q51.900000000000006 -25.400000000000002 51.900000000000006 -35.1Z"/><path d="M105.0 -56.5V-42.300000000000004H127.9V-29.1H105.0V-13.700000000000001H130.9V0.0H87.9V-70.2H130.9V-56.5Z"/><path d="M168.10000000000002 -56.5V-42.300000000000004H191.0V-29.1H168.10000000000002V-13.700000000000001H194.0V0.0H151.0V-70.2H194.0V-56.5Z"/><path d="M241.8 -25.200000000000003H231.20000000000002V0.0H214.1V-70.2H241.8Q250.20000000000002 -70.2 256.0 -67.30000000000001Q261.8 -64.4 264.70000000000005 -59.300000000000004Q267.6 -54.2 267.6 -47.6Q267.6 -41.5 264.8 -36.45Q262.0 -31.400000000000002 256.2 -28.300000000000004Q250.4 -25.200000000000003 241.8 -25.200000000000003ZM250.20000000000002 -47.6Q250.20000000000002 -51.800000000000004 247.8 -54.10000000000001Q245.4 -56.400000000000006 240.5 -56.400000000000006H231.20000000000002V-38.800000000000004H240.5Q245.4 -38.800000000000004 247.8 -41.10000000000001Q250.20000000000002 -43.400000000000006 250.20000000000002 -47.6Z"/><path d="M313.7 -21.0H331.9Q332.3 -17.1 334.6 -15.05Q336.9 -13.0 340.6 -13.0Q344.4 -13.0 346.6 -14.75Q348.8 -16.5 348.8 -19.6Q348.8 -22.200000000000003 347.05 -23.900000000000002Q345.3 -25.6 342.75 -26.700000000000003Q340.2 -27.8 335.5 -29.200000000000003Q328.7 -31.3 324.4 -33.4Q320.1 -35.5 317.0 -39.6Q313.9 -43.7 313.9 -50.300000000000004Q313.9 -60.1 321.0 -65.65Q328.1 -71.2 339.5 -71.2Q351.1 -71.2 358.20000000000005 -65.65Q365.3 -60.1 365.8 -50.2H347.3Q347.1 -53.6 344.8 -55.55Q342.5 -57.5 338.9 -57.5Q335.8 -57.5 333.9 -55.85Q332.0 -54.2 332.0 -51.1Q332.0 -47.7 335.2 -45.800000000000004Q338.4 -43.900000000000006 345.2 -41.7Q352.0 -39.400000000000006 356.25 -37.300000000000004Q360.5 -35.2 363.6 -31.200000000000003Q366.7 -27.200000000000003 366.7 -20.900000000000002Q366.7 -14.9 363.65 -10.0Q360.6 -5.1000000000000005 354.8 -2.2Q349.0 0.7000000000000001 341.1 0.7000000000000001Q333.4 0.7000000000000001 327.29999999999995 -1.7999999999999998Q321.2 -4.3 317.54999999999995 -9.200000000000001Q313.9 -14.100000000000001 313.7 -21.0Z"/><path d="M426.9 0.0 403.3 -31.0V0.0H386.2V-70.2H403.3V-39.400000000000006L426.7 -70.2H446.8L419.6 -35.800000000000004L447.8 0.0Z"/><path d="M525.1 -70.2 500.8 -23.200000000000003V0.0H483.7V-23.200000000000003L459.4 -70.2H478.8L492.4 -40.800000000000004L505.9 -70.2Z"/></g></svg>`;
+const LOGO_L=`<svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 545.8 172.5" width="300" height="95" role="img" aria-label="Deep Sky"><defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B7FE6"/><stop offset="1" stop-color="#4FB4FF"/></linearGradient>
+<linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3B6B"/><stop offset="1" stop-color="#E0113F"/></linearGradient></defs>
+<g transform="translate(188.158065,2) scale(1.193548)" fill="url(#bg)">
+<path d="M70 41C79 19 104 7 136 4C124 15 113 27 99 37C92 42 80 45 70 41Z"/>
+<path d="M70 41C61 23 38 12 6 11C19 22 31 32 47 40C55 44 63 45 70 41Z"/>
+<path d="M60 40C66 35 80 35 90 41L108 44L92 49C84 54 70 54 62 48Z"/>
+<path d="M62 44C57 54 50 61 40 67C55 65 70 59 80 49Z"/></g><g transform="translate(10,162.5)" fill="url(#tg)"><path d="M69.3 -35.1Q69.3 -24.8 64.75 -16.8Q60.2 -8.8 51.85 -4.4Q43.5 0.0 32.5 0.0H6.2V-70.2H32.5Q43.6 -70.2 51.900000000000006 -65.80000000000001Q60.2 -61.400000000000006 64.75 -53.45Q69.3 -45.5 69.3 -35.1ZM51.900000000000006 -35.1Q51.900000000000006 -44.800000000000004 46.5 -50.2Q41.1 -55.6 31.400000000000002 -55.6H23.3V-14.8H31.400000000000002Q41.1 -14.8 46.5 -20.1Q51.900000000000006 -25.400000000000002 51.900000000000006 -35.1Z"/><path d="M105.0 -56.5V-42.300000000000004H127.9V-29.1H105.0V-13.700000000000001H130.9V0.0H87.9V-70.2H130.9V-56.5Z"/><path d="M168.10000000000002 -56.5V-42.300000000000004H191.0V-29.1H168.10000000000002V-13.700000000000001H194.0V0.0H151.0V-70.2H194.0V-56.5Z"/><path d="M241.8 -25.200000000000003H231.20000000000002V0.0H214.1V-70.2H241.8Q250.20000000000002 -70.2 256.0 -67.30000000000001Q261.8 -64.4 264.70000000000005 -59.300000000000004Q267.6 -54.2 267.6 -47.6Q267.6 -41.5 264.8 -36.45Q262.0 -31.400000000000002 256.2 -28.300000000000004Q250.4 -25.200000000000003 241.8 -25.200000000000003ZM250.20000000000002 -47.6Q250.20000000000002 -51.800000000000004 247.8 -54.10000000000001Q245.4 -56.400000000000006 240.5 -56.400000000000006H231.20000000000002V-38.800000000000004H240.5Q245.4 -38.800000000000004 247.8 -41.10000000000001Q250.20000000000002 -43.400000000000006 250.20000000000002 -47.6Z"/><path d="M313.7 -21.0H331.9Q332.3 -17.1 334.6 -15.05Q336.9 -13.0 340.6 -13.0Q344.4 -13.0 346.6 -14.75Q348.8 -16.5 348.8 -19.6Q348.8 -22.200000000000003 347.05 -23.900000000000002Q345.3 -25.6 342.75 -26.700000000000003Q340.2 -27.8 335.5 -29.200000000000003Q328.7 -31.3 324.4 -33.4Q320.1 -35.5 317.0 -39.6Q313.9 -43.7 313.9 -50.300000000000004Q313.9 -60.1 321.0 -65.65Q328.1 -71.2 339.5 -71.2Q351.1 -71.2 358.20000000000005 -65.65Q365.3 -60.1 365.8 -50.2H347.3Q347.1 -53.6 344.8 -55.55Q342.5 -57.5 338.9 -57.5Q335.8 -57.5 333.9 -55.85Q332.0 -54.2 332.0 -51.1Q332.0 -47.7 335.2 -45.800000000000004Q338.4 -43.900000000000006 345.2 -41.7Q352.0 -39.400000000000006 356.25 -37.300000000000004Q360.5 -35.2 363.6 -31.200000000000003Q366.7 -27.200000000000003 366.7 -20.900000000000002Q366.7 -14.9 363.65 -10.0Q360.6 -5.1000000000000005 354.8 -2.2Q349.0 0.7000000000000001 341.1 0.7000000000000001Q333.4 0.7000000000000001 327.29999999999995 -1.7999999999999998Q321.2 -4.3 317.54999999999995 -9.200000000000001Q313.9 -14.100000000000001 313.7 -21.0Z"/><path d="M426.9 0.0 403.3 -31.0V0.0H386.2V-70.2H403.3V-39.400000000000006L426.7 -70.2H446.8L419.6 -35.800000000000004L447.8 0.0Z"/><path d="M525.1 -70.2 500.8 -23.200000000000003V0.0H483.7V-23.200000000000003L459.4 -70.2H478.8L492.4 -40.800000000000004L505.9 -70.2Z"/></g></svg>`;
+$('#brand').innerHTML=LOGO;
+const addDays=(n,from)=>new Date(new Date(from||today()).getTime()+n*864e5).toISOString().slice(0,10);
+
+async function ledger(){
+  const {data:ac}=await db.from('accounts').select('code,name').order('code');
+  app.innerHTML=repNav()+`<h2>General ledger</h2><div class="card"><div class="g2"><div><label>Account</label><select id="la"><option value="">All accounts</option>${opts(ac,'code',a=>a.code+' '+a.name)}</select></div>
+  <div><label>From</label><input id="lf" type="date" value="${today().slice(0,4)}-01-01"></div><div><label>To</label><input id="lt" type="date" value="${today()}"></div></div><button id="lgo">Show ledger</button></div><div id="lr"></div>`;
+  const run=async()=>{
+    const a=$('#la').value,f=$('#lf').value,t=$('#lt').value;
+    let q=db.from('journal_lines').select('debit,credit,account_code,accounts(name),journal_entries!inner(entry_date,ref,memo,created_at)').gte('journal_entries.entry_date',f).lte('journal_entries.entry_date',t).limit(2000);
+    if(a) q=q.eq('account_code',a);
+    const [{data,error},ob]=await Promise.all([q,a?db.rpc('balances_at',{p_date:addDays(-1,f)}):Promise.resolve({data:[]})]);
+    if(error) return fail(error);
+    const rows=data.sort((x,y)=>x.journal_entries.entry_date.localeCompare(y.journal_entries.entry_date)||String(x.journal_entries.created_at).localeCompare(String(y.journal_entries.created_at)));
+    let bal=a?Number((ob.data.find(r=>r.code===a)||{}).balance||0):0; const dr=sumBy(rows,r=>r.debit), cr=sumBy(rows,r=>r.credit);
+    const side=n=>pkr(Math.abs(n))+(n<0?' Cr':' Dr');
+    $('#lr').innerHTML=`<div class="card"><div class="sum">${kpi('Total debits',pkr(dr))}${kpi('Total credits',pkr(cr))}${a?kpi('Closing balance',side(bal+dr-cr)):kpi('Lines',rows.length)}</div></div>
+    <div class="card wide"><table class="led"><tr><th>Date</th><th>Reference</th><th>Account</th><th>Description</th><th class="n">Debit</th><th class="n">Credit</th>${a?'<th class="n">Balance</th>':''}</tr>
+    ${a?`<tr><td colspan="6" class="mute">Opening balance</td><td class="n">${side(bal)}</td></tr>`:''}
+    ${rows.map(r=>{bal+=Number(r.debit)-Number(r.credit);const e=r.journal_entries;return `<tr><td>${e.entry_date}</td><td>${esc(e.ref||'')}</td><td>${r.account_code} ${esc(r.accounts.name)}</td><td class="mute">${esc(e.memo||'')}</td>
+    <td class="n">${r.debit>0?pkr(r.debit):''}</td><td class="n">${r.credit>0?pkr(r.credit):''}</td>${a?`<td class="n">${side(bal)}</td>`:''}</tr>`}).join('')||'<tr><td colspan="7" class="mute">No entries in this range</td></tr>'}</table>
+    ${rows.length>=2000?'<p class="warn">Showing the first 2000 lines. Narrow the date range.</p>':''}</div>`};
+  $('#lgo').onclick=run;run();
+}
+
+async function vendorsView(){
+  const [{data:vs},{data:bills},{data:vp},cash]=await Promise.all([db.from('vendors').select('*').order('name'),db.from('vendor_bill_summary').select('*').order('bill_date',{ascending:false}),
+    db.from('vendor_payments').select('*,vendor_bills(invoice_no,vendor_id,booking_id,bookings(ref))').eq('voided',false).order('paid_on',{ascending:false}).limit(100),cashAccts()]);
+  const vn=Object.fromEntries(vs.map(v=>[v.id,v.name])), an=Object.fromEntries(cash.map(a=>[a.code,a.name]));
+  const open=bills.filter(b=>b.outstanding>0).sort((x,y)=>String(x.due_date||'').localeCompare(String(y.due_date||''))), bk={};
+  open.forEach(b=>bk[age(b.due_date)]=(bk[age(b.due_date)]||0)+Number(b.outstanding));
+  const billed=sumBy(bills,b=>b.amount), paid=sumBy(bills,b=>b.paid), owed=billed-paid;
+  const per=vs.map(v=>{const bb=bills.filter(b=>b.vendor_id===v.id);return {v,billed:sumBy(bb,b=>b.amount),paid:sumBy(bb,b=>b.paid)}}).filter(r=>r.billed>0);
+  app.innerHTML=`<h2>Vendors and payables</h2><div class="card"><div class="sum">${kpi('Total billed',pkr(billed))}${kpi('Total paid',pkr(paid),'ok')}${kpi('Payable now',pkr(owed),owed?'warn':'')}</div>
+  <div class="mute">Aging: ${['Current','1-30','31-60','61-90','90+'].map(k=>k+' '+pkr(bk[k])).join(' | ')}</div><a href="#/bill">Add vendor bill</a></div>
+  <h3>Balance by vendor</h3><div class="card wide"><table><tr><th>Vendor</th><th class="n">Billed</th><th class="n">Paid</th><th class="n">Owed</th></tr>
+  ${per.map(r=>`<tr><td>${esc(r.v.name)}</td><td class="n">${pkr(r.billed)}</td><td class="n ok">${pkr(r.paid)}</td><td class="n ${r.billed-r.paid>0?'warn':''}">${pkr(r.billed-r.paid)}</td></tr>`).join('')||'<tr><td colspan="4" class="mute">No bills yet</td></tr>'}</table></div>
+  <h3>Bills to pay</h3>${open.map(b=>`<div class="card"><div class="row"><strong>${esc(b.vendor_name)}</strong><span class="warn">Due ${pkr(b.outstanding)}</span></div>
+  <div class="mute">${esc(b.invoice_no||'No invoice no.')}, ${esc(b.booking_ref||'General')}, due ${b.due_date||'on receipt'}, total ${pkr(b.amount)}, paid ${pkr(b.paid)}</div>
+  <div class="g2"><div><label>Pay amount</label><input data-ba="${b.id}" type="number" value="${b.outstanding}"></div><div><label>From</label><select data-bc="${b.id}">${opts(cash,'code',a=>a.name)}</select></div>
+  <div><label>Payment date</label><input data-bd="${b.id}" type="date" value="${today()}"></div><div><label>Reference</label><input data-br="${b.id}"></div></div>
+  <div class="row"><button data-bp="${b.id}">Pay vendor</button>${b.paid>0?'<span class="mute">Void its payments to edit or void the bill</span>':`<span><a href="#" data-be="${b.id}">Edit bill</a> &nbsp; <a href="#" data-bv="${b.id}">Void bill</a></span>`}</div></div>`).join('')||'<div class="card ok">No unpaid bills</div>'}
+  <h3>Payment history</h3><div class="card wide"><table><tr><th>Date</th><th>Paid to</th><th>Bill</th><th class="n">Amount</th><th>From</th><th>Ref</th><th></th></tr>
+  ${vp.map(p=>`<tr><td>${p.paid_on}</td><td>${esc(vn[p.vendor_bills.vendor_id]||'')}</td><td>${esc(p.vendor_bills.invoice_no||'-')}<div class="mute">${esc(p.vendor_bills.bookings?.ref||'General')}</div></td><td class="n">${pkr(p.amount)}</td><td>${esc(an[p.account_code]||p.account_code)}</td><td>${esc(p.reference||'')}</td>
+  <td><a href="#" data-pe="${p.id}">Edit</a> <a href="#" data-pv="${p.id}">Void</a></td></tr>`).join('')||'<tr><td colspan="7" class="mute">No payments to vendors yet</td></tr>'}</table></div>
+  <h3>Add vendor</h3><div class="card"><label>Name *</label><input id="vn"><div class="g2"><div><label>Category</label><input id="vc" placeholder="Caterer, decorator..."></div>
+  <div><label>Phone</label><input id="vp" type="tel"></div><div><label>CNIC / NTN</label><input id="vt"></div><div><label>Bank details</label><input id="vb"></div></div><button id="vadd">Save vendor</button></div>`;
+  const go=async(n,a)=>{const {error}=await db.rpc(n,a);error?fail(error):route()};
+  document.querySelectorAll('[data-bv]').forEach(a=>a.onclick=e=>{e.preventDefault();const r=prompt('Reason for voiding this bill?');if(r)go('void_vendor_bill',{p_bill:a.dataset.bv,p_date:today(),p_reason:r})});
+  document.querySelectorAll('[data-pv]').forEach(a=>a.onclick=e=>{e.preventDefault();const r=prompt('Reason for voiding this payment? The money returns to the account.');if(r)go('void_vendor_payment',{p_payment:a.dataset.pv,p_date:today(),p_reason:r})});
+  document.querySelectorAll('[data-pe]').forEach(a=>a.onclick=e=>{e.preventDefault();const p=vp.find(x=>x.id===a.dataset.pe);
+    editor('Edit payment to '+esc(vn[p.vendor_bills.vendor_id]||''),[['paid_on','Date','date'],['amount','Amount (PKR)','number'],['reference','Reference']],p,async o=>{const r=prompt('Reason for the change? The old payment is voided and a corrected one is recorded.');if(!r)return {message:'Cancelled.'};
+      return (await db.rpc('replace_vendor_payment',{p_payment:p.id,p_date:o.paid_on,p_amount:Number(o.amount),p_ref:o.reference,p_reason:r})).error})});
+  document.querySelectorAll('[data-be]').forEach(a=>a.onclick=e=>{e.preventDefault();const b=bills.find(x=>x.id===a.dataset.be);
+    editor('Edit bill from '+esc(b.vendor_name),[['bill_date','Bill date','date'],['due_date','Due date','date'],['invoice_no','Invoice no.'],['description','Description'],['amount','Amount (PKR)','number']],b,async o=>{const r=prompt('Reason for the change? The old bill is voided and a corrected one is recorded.');if(!r)return {message:'Cancelled.'};
+      return (await db.rpc('replace_vendor_bill',{p_bill:b.id,p_date:o.bill_date,p_due:o.due_date,p_invoice:o.invoice_no,p_desc:o.description,p_account:b.account_code,p_amount:Number(o.amount),p_guests:b.guests,p_rate:b.rate,p_reason:r})).error})});
+  $('#vadd').onclick=async()=>{if(!$('#vn').value.trim())return fail('Vendor name is required.');
+    const {error}=await db.from('vendors').insert({name:$('#vn').value.trim(),category:$('#vc').value||null,phone:$('#vp').value||null,cnic_ntn:$('#vt').value||null,bank_info:$('#vb').value||null});error?fail(error):route()};
+  document.querySelectorAll('[data-bp]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.bp,q=k=>document.querySelector(`[data-${k}="${id}"]`).value;
+    go('pay_vendor',{p_bill:id,p_date:q('bd'),p_amount:Number(q('ba')),p_account:q('bc'),p_ref:q('br')||null})});
+}
+
+const _su=setupView;setupView=async function(){await _su();
+  const c=document.createElement('div');
+  c.innerHTML=`<h3>Danger zone</h3><div class="card" style="border-color:#F3C9B6"><strong>Reset everything</strong><p class="mute">Erases all bookings, payments, ledger entries, vendors, partners and closings, and restarts numbering from 1. Kept: users, chart of accounts, settings, taxes, packages and services, and the audit log. A backup file downloads first.</p>
+  <label>Your password</label><input id="rp" type="password" autocomplete="current-password"><label>Type RESET to confirm</label><input id="rw"><button id="rgo2" style="background:#C8470F">Reset system</button></div>`;app.append(c);
+  $('#rgo2').onclick=async()=>{
+    if($('#rw').value!=='RESET') return fail('Type RESET in capital letters to confirm.');
+    const {data:{user}}=await db.auth.getUser();const {error:pe}=await db.auth.signInWithPassword({email:user.email,password:$('#rp').value});
+    if(pe) return fail('Wrong password.');
+    if(!confirm('Last chance. All business data will be erased. Continue?')) return;
+    try{await $('#bk').onclick()}catch(e){}
+    const {error}=await db.rpc('reset_all');if(error) return fail(error);
+    alert('System reset. Numbering starts again from 1.');location.hash='#/';route()};
 };
 addEventListener('hashchange',route);route();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
