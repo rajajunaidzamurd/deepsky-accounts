@@ -69,6 +69,14 @@ header b{gap:10px}.logo{flex:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
 #invoice{border-top:4px solid var(--gold)}
 .led th{position:sticky;top:0;background:#fff}.led td{font-size:13px;white-space:nowrap}.led td.mute{white-space:normal;min-width:120px}
 header b{padding:2px 0}header .logo{height:42px;width:auto}#invoice .logo{width:190px;height:auto;margin-bottom:10px}.card .logo{max-width:100%}
+
+/* Stage 10: title case and clearer dashboard */
+h2,h3,nav a,th,label,button,.sum small{text-transform:capitalize!important}
+h3{letter-spacing:.01em;font-size:15px;color:var(--ink)}
+.sum small{letter-spacing:.01em;font-size:12px}
+.cap{display:block;font-size:11px;color:var(--mute);margin-top:4px;line-height:1.3;font-weight:400}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{margin:0;padding:8px 14px;box-shadow:none}
+.tabs button.on{background:linear-gradient(#4264EA,#2F4FD0);color:#fff}
 </style><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
 </head><body>
 <header><b id="brand"></b><nav id="nav" hidden>
@@ -98,7 +106,7 @@ async function route(){
   }catch(e){fail(e)}
 }
 function login(){
-  app.innerHTML=`<div style="text-align:center;margin:26px 0 8px">${LOGO_L}<h2 style="margin:12px 0 2px">Deep Sky Marquee</h2><div class="mute">Accounts and event management</div></div><div class="card" style="max-width:420px;margin:14px auto"><h2 style="font-size:20px">Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
+  app.innerHTML=`<div style="text-align:center;margin:26px 0 8px">${LOGO_L}<h2 style="margin:12px 0 2px">Deep Sky Marquee</h2><div class="mute">Accounts And Event Management</div></div><div class="card" style="max-width:420px;margin:14px auto"><h2 style="font-size:20px">Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
   <label>Password</label><input id="pw" type="password" autocomplete="current-password"><button id="go">Sign in</button><p><a href="#" id="fp">Forgot password</a></p></div>`;
   $('#fp').onclick=async e=>{e.preventDefault();if(!$('#em').value)return fail('Enter your email first.');
     const {error}=await db.auth.resetPasswordForEmail($('#em').value,{redirectTo:location.href.split('#')[0]});error?fail(error):app.insertAdjacentHTML('afterbegin','<div class="card">Check your email for a reset link.</div>')};
@@ -775,6 +783,53 @@ const _pv2=partnersView;partnersView=async function(){await _pv2();
     l.onclick=async e=>{e.preventDefault();const {data:t}=await db.from('partner_txns').select('*').eq('id',a.dataset.pv).single();
       editor('Edit partner transaction',[['txn_date','Date','date'],['amount','Amount (PKR)','number'],['notes','Notes']],t,async o=>{const r=prompt('Reason for the change? The old entry is voided and a corrected one is recorded.');if(!r)return {message:'Cancelled.'};
         return (await db.rpc('replace_partner_txn',{p_txn:t.id,p_date:o.txn_date,p_amount:Number(o.amount),p_notes:o.notes,p_reason:r})).error})}})};
+const fmtDate=()=>new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Karachi',month:'long',day:'numeric',year:'numeric'}).format(new Date());
+function addPurge(attr,kind,msg){document.querySelectorAll(`[${attr}]`).forEach(a=>{const l=document.createElement('a');l.href='#';l.textContent='Delete Forever';l.style.color='#C8470F';a.after(' ',l);
+  l.onclick=async e=>{e.preventDefault();if(!confirm(msg))return;const {error}=await db.rpc('purge_record',{p_kind:kind,p_id:a.getAttribute(attr)});error?fail(error):route()}})}
+function purgeLists(rpc,key,msg){document.querySelectorAll('[data-d]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm(msg))return;const {error}=await db.rpc(rpc,{[key]:a.dataset.d});error?fail(error):route()})}
+const _dt3=detail;detail=async function(id){await _dt3(id);
+  addPurge('data-v','payment','Delete this payment permanently? It leaves no trace in the books.');
+  [...app.querySelectorAll('p.mute')].forEach(p=>{if(/Delete works only/.test(p.textContent))p.textContent='Delete removes this booking and everything recorded against it, permanently. Use Cancel Booking if you want to keep the record.'});
+  const b=$('#db2');if(b)b.onclick=async()=>{if(!confirm('Permanently delete this booking and everything recorded against it (payments, bills, menu, ledger entries)? This cannot be undone.'))return;
+    const {error}=await db.rpc('purge_booking',{p_booking:id});error?fail(error):location.hash='#/bookings'}};
+const _vv3=vendorsView;vendorsView=async function(){await _vv3();
+  addPurge('data-pv','vendor_payment','Delete this payment permanently? It leaves no trace in the books.');
+  addPurge('data-bv','vendor_bill','Delete this bill permanently?');
+  purgeLists('purge_vendor','p_vendor','Permanently delete this vendor with all of its bills and payments? This cannot be undone.')};
+const _pv3=partnersView;partnersView=async function(){await _pv3();
+  addPurge('data-pv','partner_txn','Delete this transaction permanently? It leaves no trace in the books.');
+  purgeLists('purge_partner','p_partner','Permanently delete this partner with all of their transactions? This cannot be undone.')};
+const _ef3=expenseForm;expenseForm=async function(){await _ef3();
+  document.querySelectorAll('[data-d]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Delete this expense permanently? It leaves no trace in the books.'))return;
+    const {error}=await db.rpc('purge_record',{p_kind:'entry',p_id:a.dataset.d});error?fail(error):route()})};
+const _jv3=journalView;journalView=async function(){await _jv3();addPurge('data-rv','entry','Delete this entry permanently? It leaves no trace in the books.')};
+
+async function home(){
+  const t=today(), ms=monthStart();
+  const [{data:bk},{data:sch},{data:bills},{data:pm},{data:pa},{data:pt},{data:tb}]=await Promise.all([
+    db.from('booking_summary').select('*').neq('status','Cancelled'),db.from('payment_schedule').select('*'),db.from('vendor_bill_summary').select('*').gt('outstanding',0),
+    db.rpc('period_profit',{p_from:ms,p_to:t}),db.rpc('period_profit',{p_from:'2000-01-01',p_to:t}),db.rpc('period_profit',{p_from:t,p_to:t}),
+    db.from('trial_balance').select('*').gte('code','1000').lt('code','1200')]);
+  const P={today:pt[0],month:pm[0],all:pa[0]}, ev=bk.filter(b=>b.event_date===t), up=bk.filter(b=>b.event_date>t&&!b.completed).sort((a,b)=>a.event_date.localeCompare(b.event_date)).slice(0,5);
+  const rec=sumBy(bk,b=>b.outstanding), pay=sumBy(bills,b=>b.outstanding), cash=sumBy(tb,a=>a.debit-a.credit), over=[];
+  bk.forEach(b=>{let pool=Number(b.received);sch.filter(s=>s.booking_id===b.id).sort((x,y)=>x.due_date.localeCompare(y.due_date)).forEach(s=>{
+    const paid=Math.min(pool,s.amount);pool-=paid;if(paid<s.amount&&s.due_date<t)over.push({b,s,left:s.amount-paid})})});
+  const soon=new Date(new Date(t).getTime()+7*864e5).toISOString().slice(0,10), dueBills=bills.filter(b=>b.due_date&&b.due_date<=soon);
+  const tile=(l,v,c,cls='')=>`<div><small>${l}</small><strong class="${cls}">${v}</strong><span class="cap">${c}</span></div>`;
+  app.innerHTML=`<h2>${fmtDate()}</h2><div class="mute" style="margin:-8px 0 12px">Today's Overview</div>
+  <div class="card"><div class="row"><strong>${ev.length} Event${ev.length===1?'':'s'} Today</strong><a href="#/today">Collect Payments</a></div>
+  ${ev.map(b=>`<div class="row"><span>${esc(b.customer_name)}, ${esc(b.event_type)}${b.guests?', '+b.guests+' guests':''}</span><span class="${b.outstanding>0?'warn':'ok'}">Balance ${pkr(b.outstanding)}</span></div>`).join('')}</div>
+  <h3>Money Right Now</h3><div class="card"><div class="sum">${tile('Cash And Bank',pkr(cash),'Money you hold today')}${tile('Customers Owe You',pkr(rec),'Unpaid balances on bookings',rec?'warn':'')}${tile('You Owe Vendors',pkr(pay),'Unpaid vendor bills',pay?'warn':'')}</div></div>
+  <h3>Profit Report</h3><div class="card"><div class="tabs"><button data-k="today" class="alt">Today</button><button data-k="month" class="on">This Month</button><button data-k="all" class="alt">All Time</button></div><div id="pr"></div></div>
+  <h3>Business At A Glance</h3><div class="card"><div class="sum">${tile('Total Bookings',bk.length,'All bookings, not cancelled')}${tile('Average Booking',pkr(bk.length?sumBy(bk,b=>b.contract_value)/bk.length:0),'Average contract value')}${tile('Events Completed',bk.filter(b=>b.completed).length,'Revenue is counted when completed')}</div></div>
+  <h3>Overdue Customer Payments</h3><div class="card">${over.map(o=>`<a class="item row" href="#/b/${o.b.id}"><span>${esc(o.b.customer_name)}, ${esc(o.s.label)}, due ${o.s.due_date}</span><span class="warn">${pkr(o.left)}</span></a>`).join('')||'<span class="ok">Nothing is overdue</span>'}</div>
+  <h3>Upcoming Events</h3><div class="card">${up.map(b=>`<a class="item row" href="#/b/${b.id}"><span>${b.event_date} ${esc(b.customer_name)}</span><span class="${b.outstanding>0?'warn':'ok'}">Due ${pkr(b.outstanding)}</span></a>`).join('')||'<span class="mute">No upcoming events</span>'}</div>
+  <h3>Vendor Payments Due Within 7 Days</h3><div class="card">${dueBills.map(b=>`<div class="row"><span>${esc(b.vendor_name)}, due ${b.due_date}</span><span class="warn">${pkr(b.outstanding)}</span></div>`).join('')||'<span class="mute">Nothing due this week</span>'}<a href="#/vendors">Open Payables</a></div>`;
+  const show=k=>{const r=P[k],cost=Number(r.direct_costs)+Number(r.expenses),net=Number(r.net);
+    document.querySelectorAll('.tabs button').forEach(b=>b.className=b.dataset.k===k?'on':'alt');
+    $('#pr').innerHTML=`<div class="sum">${tile('Revenue',pkr(r.revenue),'Earned from completed events')}${tile('Expenses',pkr(cost),'Vendor costs plus running costs')}${tile(net>=0?'Profit':'Loss',pkr(net),'Revenue minus expenses'+(r.revenue>0?', '+(net/r.revenue*100).toFixed(0)+'% margin':''),net>=0?'ok':'warn')}</div>`};
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.k));show('month');
+}
 addEventListener('hashchange',route);route();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script></body></html>
