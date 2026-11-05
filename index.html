@@ -98,6 +98,7 @@ const fail=e=>{app.insertAdjacentHTML('afterbegin',`<div class="err">${esc(/row-
 const status=b=>b.status;
 
 async function route(){
+  const stamp=window.routeStamp;
   const {data:{session}}=await db.auth.getSession();
   $('#nav').hidden=!session;
   if(!session) return login();
@@ -108,7 +109,7 @@ async function route(){
     else if(h==='/tb') await tb(); else if(h==='/today') await todayView(); else if(h==='/vendors') await vendorsView();
     else if(h.startsWith('/bill')) await billForm(); else if(h==='/expense') await expenseForm();
     else if(h==='/partners') await partnersView(); else if(h==='/cash') await cashView(); else if(h.startsWith('/b/')) await detail(h.slice(3));
-  }catch(e){fail(e)}
+  }catch(e){if(stamp===window.routeStamp)fail(e)}
 }
 function login(){
   app.innerHTML=`<div style="text-align:center;margin:26px 0 8px">${LOGO_L}<h2 style="margin:12px 0 2px">Deep Sky Marquee</h2><div class="mute">Accounts And Event Management</div></div><div class="card" style="max-width:420px;margin:14px auto"><h2 style="font-size:20px">Sign in</h2><label>Email</label><input id="em" type="email" autocomplete="username">
@@ -742,7 +743,8 @@ const _su=setupView;setupView=async function(){await _su();
     alert('System reset. Numbering starts again from 1.');location.hash='#/';route()};
 };
 async function crud(heading,table,fields,label,order='name',soft=false){
-  const {data,error:le}=await db.from(table).select('*').order(order);if(le){fail(le);return null}
+  const st0=window.routeStamp;
+  const {data,error:le}=await db.from(table).select('*').order(order);if(st0!==window.routeStamp)return null;if(le){fail(le);return null}
   const c=document.createElement('div');
   c.innerHTML=`<h3>${heading}</h3><div class="card">${data.map(r=>`<div class="row"><span>${esc(label(r))}${r.active===false?' <span class="mute">(hidden)</span>':''}</span><span><a href="#" data-e="${r.id}">Edit</a> &nbsp; <a href="#" data-d="${r.id}">Delete</a></span></div>`).join('')||'<span class="mute">Nothing yet</span>'}</div>`;app.append(c);
   c.querySelectorAll('[data-e]').forEach(a=>a.onclick=e=>{e.preventDefault();const r=data.find(x=>x.id===a.dataset.e);
@@ -754,10 +756,10 @@ async function crud(heading,table,fields,label,order='name',soft=false){
   return c;
 }
 const _su2=setupView;setupView=async function(){await _su2();
-  const anchor=[...app.querySelectorAll('h3')].find(h=>h.textContent==='Backup'), put=c=>c&&app.insertBefore(c,anchor);
+  const anchor=[...app.querySelectorAll('h3')].find(h=>h.textContent==='Backup'), ins=c=>{if(!c)return;if(anchor){if(anchor.isConnected)anchor.parentNode.insertBefore(c,anchor)}else app.append(c)}, put=ins;
   const m=document.createElement('div');
   m.innerHTML=`<h3>Menu (dishes)</h3><div class="card"><p class="mute">Build your own menu. Dishes are chosen on each booking.</p><div class="g2"><div><label>Dish name *</label><input id="mn"></div><div><label>Category</label><input id="mc" placeholder="Starter, Main, Dessert, Drink"></div>
-  <div><label>Price or cost per head (PKR, optional)</label><input id="mp" type="number"></div><div><label>Description</label><input id="md"></div></div><button id="madd" class="alt">Add dish</button></div>`;app.insertBefore(m,anchor);
+  <div><label>Price or cost per head (PKR, optional)</label><input id="mp" type="number"></div><div><label>Description</label><input id="md"></div></div><button id="madd" class="alt">Add dish</button></div>`;ins(m);
   $('#madd').onclick=async()=>{if(!$('#mn').value.trim())return fail('Dish name is required.');
     const {error}=await db.from('menu_items').insert({name:$('#mn').value.trim(),category:$('#mc').value.trim()||'Main',price_per_head:Number($('#mp').value||0),description:$('#md').value||null});error?fail(error):route()};
   put(await crud('Edit or delete menu dishes','menu_items',[['name','Name'],['category','Category'],['price_per_head','Price per head','number'],['description','Description']],d=>d.category+': '+d.name+(d.price_per_head>0?' ('+pkr(d.price_per_head)+'/head)':''),'category'));
@@ -895,7 +897,8 @@ function addPdfBtn(){
   const bar=document.createElement('div');bar.className='pdfbar noprint';bar.innerHTML='<button class="alt" id="pdfbtn">Download PDF</button>';app.prepend(bar);
   $('#pdfbtn').onclick=async e=>{const b=e.target;b.textContent='Preparing PDF...';try{await exportPage()}catch(x){fail(x)}b.textContent='Download PDF'};
 }
-const _rt=route;route=async function(){await _rt();addPdfBtn()};
+const _rt=route;route=async function(){const s=window.routeStamp=(window.routeStamp||0)+1;await _rt();
+  if(s!==window.routeStamp){clearTimeout(window.healT);window.healT=setTimeout(()=>route(),60);return}addPdfBtn()};
 
 async function voucher(o){
   const J=await loadPdf(),st=await getSettings().catch(()=>({})),doc=new J({unit:'mm',format:'a4'});let y=pdfHeader(doc,o.title,st);
