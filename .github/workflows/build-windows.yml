@@ -1,0 +1,23 @@
+name: Build Windows App
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Use the app icon
+        shell: bash
+        run: cp icon-512.png electron/icon.png
+      - name: Install
+        working-directory: electron
+        run: npm install
+      - name: Build installer
+        working-directory: electron
+        run: npx electron-builder --win nsis --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeepSky-Windows-Installer
+          path: electron/dist/*.exe
